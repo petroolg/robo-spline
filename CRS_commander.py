@@ -2,22 +2,18 @@
 
 ''' Module provides functions for robot control via Mars 8 unit. '''
 
-# (c) 2009-05, V. Smutny ???
-# (c) 2010-01-27, Martin Matousek
+#  based on code by P. Pisa
 
-import sys
 import serial
 import time
-import numpy as np
-import argparse
-from robCRSikt import robCRSikt
-from robotCRS97 import Robot
+from robotCRS97 import *
 
 class Commander:
 
     def __init__(self, rcon=None):
-        self.robot = Robot()
+        self.robot = robCRS97()
         self.rcon = rcon
+        self.stamp = int(time.time()%0x7fff)
         self.last_trgt_irc = None
 
     def set_rcon(self, rcon):
@@ -42,6 +38,7 @@ class Commander:
         return d * 180.0 / np.pi
 
     def init_robot(self):
+        self.check_stamp()
         print('Resetting motors')
         # Purge
         self.rcon.write("PURGE:\n")
@@ -51,8 +48,8 @@ class Commander:
         self.check_ready()
         self.wait_ready()
 
-        self.set_speeds(self.robot.defaultspeed)
-        self.set_acc(self.robot.defaultacceleration)
+        self.set_motion_par('REGMS', self.robot.defaultspeed)
+        self.set_motion_par('REGACC', self.robot.defaultacceleration)
 
         fields = ['REGME', 'REGCFG', 'REGP', 'REGI', 'REGD']
 
@@ -62,10 +59,10 @@ class Commander:
             if param_list:
                 for i in range(self.robot.DOF):
                     if self.robot.activemotors[i]:
-                        self.rcon.write('%s%s:%i' % (f, self.robot.activemotors[i], param_list[i]))
+                        self.rcon.write('%s%s:%i\n' % (f, self.robot.activemotors[i], param_list[i]))
 
         if hasattr(self.robot, 'IDLEREL'):
-            self.rcon.write('IDLEREL:%i'%self.robot.IDLEREL)
+            self.rcon.write('IDLEREL:%i\n'%self.robot.IDLEREL)
 
         if hasattr(self.robot, 'gripper_init'):
             if self.robot.verbose:
@@ -73,7 +70,24 @@ class Commander:
             robot = self.robot.gripper_init(self)
 
         if self.robot.description[:3] == 'CRS':
-            self.rcon.write('SPDTB:0,300')
+            self.rcon.write('SPDTB:0,300\n')
+
+
+
+    #TODO: finish stamp method
+    def check_stamp(self):
+        self.rcon.write('STAMP:%d\n' % self.stamp)
+        buf=''
+        while True:
+            buf += self.rcon.read(1024)
+            i = buf.find('\n' + 'STAMP' + '=')
+            if i < 0:
+                continue
+            if buf[i+1:].find('%d'%self.stamp) != -1:
+                break
+            print(buf)
+        # self.rcon.write('STAMP?\n')
+        # self.stamp = (self.stamp + 1) & 0x7fff
 
     def check_ready(self):
         a = int(self.query('ST'))
@@ -86,46 +100,26 @@ class Commander:
             s = s + 'motion stop, '
         if s:
             raise Exception('Check ready:' + s[:-2] + '.')
-        return False if a & 0x4000 else True
+        return False if a & 0x10 else True
 
-    def set_speeds(self, speeds):
+    def set_motion_par(self, command, params):
         for i in range(self.robot.DOF):
             if self.robot.activemotors[i] != '':
-                if np.imag(speeds[i]) or speeds[i] == 0: # relative speed
-                    r = np.imag(speeds[i])
+                if np.imag(params[i]) or params[i] == 0: # relative speed
+                    r = np.imag(params[i])
                     if r < 0 or r > 1:
                         raise  Exception('Relative speed %i out of <0;1>', i)
-                    speeds[i] = round(self.robot.minspeed[i] * (1 - r) + self.robot.maxspeed[i] * r)
-                    self.rcon.write('REGMS%s:%i'%(self.robot.activemotors[i], speeds[i]))
-                elif speeds[i] < self.robot.minspeed[i] or speeds[i] > self.robot.maxspeed[i]:
+                    params[i] = round(self.robot.minspeed[i] * (1 - r) + self.robot.maxspeed[i] * r)
+                    self.rcon.write('%s%s:%i\n'%(command, self.robot.activemotors[i], params[i]))
+                elif params[i] < self.robot.minspeed[i] or params[i] > self.robot.maxspeed[i]:
                     # speed is not inside lower and upper bound
                     raise Exception('Speed %i out of bound', i)
                 else: # set the speed
-                    self.rcon.write('REGMS%s:%i'%(self.robot.activemotors[i], speeds[i]))
-
-    def set_acc(self, acc):
-        for i in range(self.robot.DOF):
-            if self.robot.activemotors[i] != '':
-                if np.imag(acc[i]) or acc[i] == 0: # relative speed
-                    r = np.imag(acc[i])
-                    if r < 0 or r > 1:
-                        raise Exception('Relative acceleration %i out of <0;1>', i)
-                    acc[i] = round(self.robot.minacceleration[i] * (1 - r) + self.robot.maxacceleration[i] * r)
-                    self.rcon.write('REGACC%s:%i'%(self.robot.activemotors[i], acc[i]))
-                elif acc[i] < self.robot.minacceleration[i] or acc[i] > self.robot.maxacceleration[i]:
-                    # speed is not inside lower and upper bound
-                    raise Exception('Acceleration %i out of bound', i)
-                else: # set the speed
-                    self.rcon.write('REGACC%s:%i'%(self.robot.activemotors[i], acc[i]))
+                    self.rcon.write('%s%s:%i\n'%(command, self.robot.activemotors[i], params[i]))
 
     def init_communication(self):
         s = self.rcon.read(1024)
-
-        self.rcon.write("InvBuff\n")
-        s = self.rcon.read(1024)
-
         self.rcon.write("ECHO:0\n")
-        s = self.rcon.read(1024)
         self.rcon.write("VER?\n")
         s = self.rcon.read(1024)
         print(s)
@@ -142,7 +136,7 @@ class Commander:
 
     def setup_coordmv(self, axes_list=None):
         if axes_list is None:
-            axes_list = self.coord_axes
+            axes_list = self.robot.coord_axes
         self.wait_ready()
         axes_coma_list = ','.join(axes_list)
         print(axes_coma_list, axes_list)
@@ -168,6 +162,7 @@ class Commander:
         self.rcon.write(cmd + '\n')
 
     def splinemv(self, param, order=1, min_time=None):
+
         cmd = 'COORDSPLINET'
         if min_time is None:
             min_time = 0
@@ -186,35 +181,49 @@ class Commander:
         # Hard-home
         if axes_list is None:
             axes_list = self.robot.hh_axes_list
-        for a in axes_list:
-            self.rcon.write('HH' + a + ':\n')
+
+        self.rcon.write('HH' + axes_list[1] + ':\n')
         self.wait_ready()
-        for a in axes_list:
-            self.rcon.write('HH' + a + ':\n')
-            self.wait_ready()
+
+        self.rcon.write('HH' + axes_list[0] + ':\n')
+        self.rcon.write('HH' + axes_list[2] + ':\n')
+        self.wait_ready()
+
+        self.rcon.write('HH' + axes_list[3] + ':\n')
+        self.rcon.write('HH' + axes_list[4] + ':\n')
+        self.rcon.write('HH' + axes_list[5] + ':\n')
+        self.wait_ready()
+
+        self.setup_coordmv()
+        self.coordmv(self.anglestoirc(np.array(self.robot.shdeg)))
+        self.wait_ready()
+
         self.last_trgt_irc=None
 
-    def query(self, q):
+    def query(self, query):
         buf = '\n'
-        # while len(self.rcon.read(1024)) != 0:
-        #     pass
-        self.rcon.write('\n' + q + '?\n')
+        while len(self.rcon.read(1024)) != 0:
+            pass
+        self.rcon.write(query + '?\n')
         while True:
             buf += self.rcon.read(1024)
-            i = buf.find('\n' + q + '=')
-            if i<0:
+            i = buf.find('\n' + query + '=')
+            if i < 0:
                 continue
             if buf[i+1:].find('\n') != -1:
                 break
-        return buf[i+2+len(q):]
+        return buf[i+2+len(query):]
+
+    def command(self, command):
+        self.rcon.write(command + ':\n')
 
     def move_to_pos(self, pos, prev_pos = None, relative=False):
-        a = c.robot.ikt(c.robot, pos)
+        a = self.robot.ikt(self.robot, pos)
         valid_lst = []
         num = -1
         irc = []
         for i in range(len(a)):
-            irc = c.robot.anglestoirc(a[i])
+            irc = self.robot.anglestoirc(a[i])
             validm = irc > self.robot.bound[0]
             validp = irc < self.robot.bound[1]
             valid = np.logical_and(validm, validp)
@@ -230,7 +239,7 @@ class Commander:
                 if dist < min_dist and i in valid_lst:
                     min_dist = dist
                     num = i
-            irc = c.robot.anglestoirc(a[num])
+            irc = self.robot.anglestoirc(a[num])
 
 
         # print('Number of solution:', num)
@@ -257,7 +266,7 @@ class Commander:
             self.splinemv(irc)
         else:
             self.coordmv(irc, relative=relative)
-        # wait_ready(c.rcon)
+        # wait_ready(self.rcon)
         return a[num]
 
     def wait_ready(self):
@@ -280,7 +289,7 @@ class Commander:
         if s == 'R:%s!\r\n' % self.robot.gripper_ax:
             last = float('inf')
             while True:
-                self.rcon.write('AP%s?'%self.robot.gripper_ax)
+                self.rcon.write('AP%s?\n'%self.robot.gripper_ax)
                 s = self.rcon.read
 
                 if s == 'FAIL!\r\n':
@@ -297,58 +306,8 @@ class Commander:
             self.wait_ready()
             raise Exception( 'Command \'R:%s\' returned \'FAIL!\''%self.robot.gripper_ax)
 
+    def open_comm(self, tty_dev):
 
-def circle(c #type: Commander
-            , x=500, y0=250, z0=500, r=50):
-    c.setup_coordmv()
-    pos = [x, y0+r, z0, 0, 0, 0]
-    prev_a = c.move_to_pos(pos)
-    for i in range(360):
-        y = y0 + r*np.cos(i/180.0*np.pi)
-        z = z0 + r*np.sin(i/180.0*np.pi)
-        pos = [x, y, z, 0, 0, 0]
-        # print('pos', pos)
-        # print('i', i)
-        prev_a = c.move_to_pos(pos, prev_a, relative=True)
-
-
-if __name__ == '__main__':
-
-    help_msg = 'SYNOPSIS: CRS_commander.py [-l /dev/ttyXXX]'
-
-    parser = argparse.ArgumentParser(description='CRS robot commander')
-    parser.add_argument('-s', '--skip-setup', dest='skip_setup', action='store_true',
-                        default=False, help='skip hard-home inicialization of robot')
-    parser.add_argument('-d', '--tty-device', dest='tty_dev', type=str,
-                        default='COM3', help='tty line/device to robot')  # /dev/ttyUSB0
-    parser.add_argument('-m', '--max-speed', dest='max_speed', type=int,
-                        default=None, help='maximal motion speed')
-    parser.add_argument('-t', '--reg-type', dest='reg_type', type=int,
-                        default=8, help='controller type selection')
-    parser.add_argument('--reg-s1', dest='reg_s1', type=int,
-                        default=None, help='controller S1 constant')
-    parser.add_argument('--reg-s2', dest='reg_s2', type=int,
-                        default=None, help='controller S2 constant')
-    parser.add_argument('-T', '--reg-preset', dest='reg_preset', action='store_true',
-                        default=False, help='skip hard-home inicialization of robot')
-    parser.add_argument('-p', '--target-position', dest='target_position', type=int,
-                        default=None, help='target position')
-    parser.add_argument('-a', '--action', dest='action', type=str,
-                        default=None, help='action to run')
-
-    args = parser.parse_args()
-
-    tty_dev = args.tty_dev
-    skip_setup = True
-    max_speed = args.max_speed
-    reg_type = args.reg_type
-    reg_s1 = args.reg_s1
-    reg_s2 = args.reg_s2
-    action = 'poly'
-
-    c = Commander()
-
-    if True:
         print("Opening %s ...\n" % tty_dev)
         ser = serial.Serial(tty_dev,
                             baudrate=19200,
@@ -358,43 +317,34 @@ if __name__ == '__main__':
                             rtscts=True,
                             timeout=0.01)
 
-        c.set_rcon(ser)
-        c.init_communication()
+        self.set_rcon(ser)
+        self.init_communication()
 
-    if reg_type is not None:
-        c.rcon.write("RELEASE:\n")
-        c.set_int_param_for_axes(param='REGTYPE', val=reg_type)
+    def release(self):
+        self.rcon.write("RELEASE:\n")
 
-    c.init_robot()
+    def init(self, **kwargs):
+        self.init_robot()
+        reg_type = kwargs.get('reg_type', None)
+        max_speed = kwargs.get('max_speed', None)
+        if reg_type is not None:
+            self.rcon.write("RELEASE:\n")
+            self.set_int_param_for_axes(param='REGTYPE', val=reg_type)
 
-    if not skip_setup or (action == 'home'):
-        # c.set_max_speed(val=1000)
+        if max_speed is not None:
+            self.set_max_speed(val=max_speed)
 
         print("Running hard home")
-        c.hard_home()
+        self.hard_home()
         print("Hard home done!")
 
-    if max_speed is not None:
-        c.set_max_speed(val=max_speed)
-
-    if action == 'release':
-        c.rcon.write("RELEASE:\n")
-
-    if action == 'circle':
-        circle(c)
-
-    if action == 'poly':
-        c.setup_coordmv()
-        params = np.load('param.npy')
-        pos = [500, 300, 500, 0, 0, 0]
-        prev_a = c.move_to_pos(pos)
-        c.wait_ready()
-        irc = [0]*18
-        for i in range(6):
-            # irc[0:-2:3] = c.robot.anglestoirc(params[i][0:-2:3])
-            # irc[1:-1:3] = c.robot.anglestoirc(params[i][1:-1:3])
-            # irc[2::3] = c.robot.anglestoirc(params[i][2::3])
-            # irc = [params[i][a]*256 for a in range(18)]
-            c.splinemv( params[i], order=3)
-        c.wait_ready()
-
+    def circle(self, x=500, y0=250, z0=500, r=50):
+        pos = [x, y0+r, z0, 0, 0, 0]
+        prev_a = self.move_to_pos(pos)
+        for i in range(360):
+            y = y0 + r*np.cos(i/180.0*np.pi)
+            z = z0 + r*np.sin(i/180.0*np.pi)
+            pos = [x, y, z, 0, 0, 0]
+            # print('pos', pos)
+            # print('i', i)
+            prev_a = self.move_to_pos(pos, prev_a, relative=True)
