@@ -10,7 +10,6 @@ from robCRSgripper import robCRSgripper, robCRSgripperinit
 class robCRS:
     """Common specifications for CRS robots"""
     def __init__(self):
-        """Common specification for CRS robots."""
 
         self.portname = 'COM4'
         self.controller = 'MARS8'
@@ -151,14 +150,6 @@ class robCRS:
 
         self.anglestoirc = lambda angles: np.multiply((angles - self.hhdeg), self.degtoirc) + self.hhirc
         self.irctoangles = lambda irc: np.divide(irc - self.hhirc, self.degtoirc) + self.hhdeg
-
-        degtorad = lambda d: d * np.pi / 180.0
-        radtodeg = lambda d: d * 180.0 / np.pi
-
-    # if __name__ == '__main__':
-    #     robot = Robot()
-    #     print robot.ikt(robot, [600, -200.0, 500.0, 0.0, 0.0, 0.0])
-
 
 class robCRS97(robCRS, object):
     """Robot specification: CRS97"""
