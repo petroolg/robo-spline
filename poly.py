@@ -1,3 +1,5 @@
+''' Module provides functions for points interpolation using splines of 3rd order '''
+
 import numpy as np
 from CRS_commander import Commander
 from matplotlib import pyplot as plt
@@ -9,7 +11,7 @@ def circle_points(c, #type: Commander
     sol = np.array([[0]*6])
     prev_a = None
     rng = 360/step
-    for i in range(rng):
+    for i in range(rng+1):
         y = y0 + r*np.cos((i*step)/180.0*np.pi)
         z = z0 + r*np.sin((i*step)/180.0*np.pi)
         pos = [x, y, z, 0, 0, 0]
@@ -98,8 +100,7 @@ def interpolate(points, graph=False):
         N = len(A)
         for K in range(N):
             for i in range(len(t2)):
-                x.append(np.array(A[K])*t2[i]**3 + np.array(B[K])*t2[i]**2
-                         + np.array(C[K])*t2[i]+ D[K])
+                x.append(np.array(A[K])*t2[i]**3 + np.array(B[K])*t2[i]**2 + np.array(C[K])*t2[i]+ D[K])
         x = np.array(x)[np.newaxis].T
         t3 = np.linspace(0, N, N*res)
         plt.plot(t, points.T[0], t, points.T[1], t, points.T[2], t, points.T[3], t, points.T[4], t, points.T[5],
