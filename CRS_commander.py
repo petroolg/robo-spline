@@ -10,9 +10,9 @@ from robotCRS97 import *
 
 class Commander:
 
-    def __init__(self, rcon=None):
-        self.robot = robCRS97()
-        self.rcon = rcon
+    def __init__(self, robot, rcon=None):
+        self.robot = robot
+        self.rcon = rcon #type: serial.Serial
         self.stamp = int(time.time()%0x7fff)
         self.last_trgt_irc = None
 
@@ -38,7 +38,7 @@ class Commander:
         return d * 180.0 / np.pi
 
     def init_robot(self):
-        self.check_stamp()
+        self.sync_cmd_fifo()
         print('Resetting motors')
         # Purge
         self.rcon.write("PURGE:\n")
@@ -54,8 +54,7 @@ class Commander:
         fields = ['REGME', 'REGCFG', 'REGP', 'REGI', 'REGD']
 
         for f in fields:
-            param_list = []
-            exec ('param_list = self.robot.' + f)
+            param_list = getattr(self.robot, f, [])
             if param_list:
                 for i in range(self.robot.DOF):
                     if self.robot.activemotors[i]:
@@ -72,22 +71,17 @@ class Commander:
         if self.robot.description[:3] == 'CRS':
             self.rcon.write('SPDTB:0,300\n')
 
-
-
-    #TODO: finish stamp method
-    def check_stamp(self):
+    def sync_cmd_fifo(self):
+        self.stamp = (self.stamp + 1) & 0x7fff
         self.rcon.write('STAMP:%d\n' % self.stamp)
-        buf=''
+        buf='\n'
         while True:
             buf += self.rcon.read(1024)
-            i = buf.find('\n' + 'STAMP' + '=')
+            i = buf.find('\n' + 'STAMP=')
             if i < 0:
                 continue
             if buf[i+1:].find('%d'%self.stamp) != -1:
                 break
-            print(buf)
-        # self.rcon.write('STAMP?\n')
-        # self.stamp = (self.stamp + 1) & 0x7fff
 
     def check_ready(self):
         a = int(self.query('ST'))
@@ -153,7 +147,7 @@ class Commander:
         cmd += ':'
         if (min_time is not None) or relative:
             if min_time is None:
-                min_time=1
+                min_time=0
             cmd += str(int(round(min_time)))
             if len(pos) > 0:
                 cmd += ','
@@ -219,90 +213,81 @@ class Commander:
 
     def move_to_pos(self, pos, prev_pos = None, relative=False):
         a = self.robot.ikt(self.robot, pos)
-        valid_lst = []
         num = -1
         irc = []
+        min_dist = 10000
         for i in range(len(a)):
             irc = self.robot.anglestoirc(a[i])
             validm = irc > self.robot.bound[0]
             validp = irc < self.robot.bound[1]
             valid = np.logical_and(validm, validp)
             if np.all(valid):
-                num = i
-                valid_lst.append(i)
-                break
-
-        if prev_pos is not None:
-            min_dist = 10000
-            for i, s in enumerate(a):
-                dist = np.linalg.norm(np.array(a[i]) - prev_pos)
-                if dist < min_dist and i in valid_lst:
-                    min_dist = dist
+                if prev_pos is not None:
+                    dist = np.linalg.norm(np.array(a[i]) - prev_pos)
+                    if dist < min_dist:
+                        min_dist = dist
+                        num = i
+                else:
                     num = i
-            irc = self.robot.anglestoirc(a[num])
+                    break
 
-
+        irc = self.robot.anglestoirc(a[num])
         # print('Number of solution:', num)
         # print('Solution:', a[num])
         # print('Valid list:', valid_lst)
         if self.last_trgt_irc is None:
             relative=False
         prev_irc = self.last_trgt_irc
-        while True:
-            st_s = self.query('ST') #type: str
-            print 'ST=' + st_s
-            try:
-                st = int(st_s.strip('\n\r '))
-                print 'ST num=' + str(st)
-            except:
-                continue
-            if (st & 128) == 0:
-                break
 
         self.last_trgt_irc = [int(round(p)) for p in irc]
         if relative:
-            irc=list(irc - prev_irc)
+            irc = list(irc - prev_irc)
         if relative:
             self.splinemv(irc)
         else:
             self.coordmv(irc, relative=relative)
-        # wait_ready(self.rcon)
         return a[num]
 
-    def wait_ready(self):
-        # s = self.rcon.read(1024)
-        # self.rcon.write("\nR:\n")
-        while 1:
-            self.rcon.write("R:\n")
-            s = self.rcon.read(1024)
-            print 'Read:' + s + '\n'
-            if (s[-4:-2] == "R!"):
-                break
-            # time.sleep(1)
+    def wait_ready(self, sync=False):
+        buf = '\n'
+        if sync:
+            self.sync_cmd_fifo()
+            print('Synchronized!')
+        self.rcon.write("\nR:\n")
+        while True:
+            buf += self.rcon.read(1024)
+            if buf.find('\nR!') >= 0:
+                return True
+            if buf.find('\nFAIL!') >= 0:
+                return False
 
     def wait_gripper_ready(self):
         if not hasattr(self.robot, 'gripper_ax'):
             raise Exception('This robot has no gripper_ax defined.')
 
-        self.rcon.write('\nR:%s\n'%self.robot.gripper_ax)
+        self.rcon.write('\nR%s:\n'%self.robot.gripper_ax)
+        self.rcon.timeout = 2
+
         s = self.rcon.read(1024)
-        if s == 'R:%s!\r\n' % self.robot.gripper_ax:
+        self.rcon.timeout = 0.01
+        if s.find('R%s!\r\n' % self.robot.gripper_ax) >= 0:
             last = float('inf')
             while True:
                 self.rcon.write('AP%s?\n'%self.robot.gripper_ax)
-                s = self.rcon.read
+                s = self.rcon.read(1024)
 
-                if s == 'FAIL!\r\n':
+                if s.find('\nFAIL!') >= 0:
                     raise Exception('Command \'AP\' returned \'FAIL!\n')
-
-                if s[:4] == 'AP%s=' % self.robot.gripper_ax:
-                    p = float(s[5:-2])
+                ifs = s.find('AP%s=' % self.robot.gripper_ax)
+                if ifs >= 0:
+                    ifl = s.find('\r\n')
+                    p = float(s[ifs+4:ifl])
                 if abs(last - p) < self.robot.gripper_poll_diff:
                     break
                 last = p
-            time.sleep(self.robot.gripper_poll_time)
+            time.sleep(self.robot.gripper_poll_time/100)
             return
-        if s == 'FAIL!\r\n':
+        if s.find('\nFAIL!') >= 0:
             self.wait_ready()
             raise Exception( 'Command \'R:%s\' returned \'FAIL!\''%self.robot.gripper_ax)
 
