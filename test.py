@@ -2,6 +2,7 @@
 
 from CRS_commander import Commander
 import argparse
+import robotCRS97
 from poly import circle_points, interpolate
 import numpy as np
 
@@ -15,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--tty-device', dest='tty_dev', type=str,
                         default='/dev/ttyUSB0', help='tty line/device to robot')
     parser.add_argument('-a', '--action', dest='action', type=str,
-                        default='home', help='action to run')
+                        default='poly', help='action to run')
     parser.add_argument('-m', '--max-speed', dest='max_speed', type=int,
                         default=None, help='maximal motion speed')
     parser.add_argument('-t', '--reg-type', dest='reg_type', type=int,
@@ -40,14 +41,14 @@ if __name__ == '__main__':
     skip_setup = args.skip_setup
     max_speed = args.max_speed
     reg_type = args.reg_type
-    action = 'graph' #args.action
+    action = args.action
     x0 = args.x0
     y0 = args.y0
     z0 = args.z0
     radius = args.r
     step = args.step
 
-    c = Commander()
+    c = Commander(robotCRS97.robCRS97())
     c.open_comm(tty_dev)
 
     if not skip_setup or action == 'home':
@@ -58,7 +59,7 @@ if __name__ == '__main__':
         interpolate(sol, graph=True)
 
     if action == 'circle':
-        c.circle(c, x0, y0, z0, radius)
+        c.circle(x0, y0, z0, radius)
 
     if action == 'poly':
         sol = circle_points(c, x0, y0, z0, radius, step)
@@ -68,9 +69,7 @@ if __name__ == '__main__':
         pos = [x0, y0+radius, z0, 0, 0, 0]
         prev_a = c.move_to_pos(pos)
         c.wait_ready()
-        for i in range(len(params)):
-            c.splinemv( params[i], order=3)
+        for j in range(0,4):
+            for i in range(len(params)):
+                c.splinemv( params[i], order=3, min_time=120)
         c.wait_ready()
-
-
-

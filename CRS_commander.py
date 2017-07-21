@@ -15,6 +15,7 @@ class Commander:
         self.rcon = rcon #type: serial.Serial
         self.stamp = int(time.time()%0x7fff)
         self.last_trgt_irc = None
+        self.coordmv_commands_to_next_check = 0
 
     def set_rcon(self, rcon):
         if self.rcon is not None:
@@ -42,6 +43,7 @@ class Commander:
         print('Resetting motors')
         # Purge
         self.rcon.write("PURGE:\n")
+        self.rcon.write("STOP:\n")
         s = self.rcon.read(2000)
         print(s)
 
@@ -80,10 +82,16 @@ class Commander:
             i = buf.find('\n' + 'STAMP=')
             if i < 0:
                 continue
-            if buf[i+1:].find('%d'%self.stamp) != -1:
+            s = '%d'%self.stamp
+            r = buf[i+7:]
+            j = r.find('\n')
+            if j < 0:
+                continue
+            r = r[0:j].strip()
+            if r == s:
                 break
 
-    def check_ready(self):
+    def check_ready(self, for_coordmv_queue = False):
         a = int(self.query('ST'))
         s = ''
         if a & 0x8:
@@ -94,7 +102,10 @@ class Commander:
             s = s + 'motion stop, '
         if s:
             raise Exception('Check ready:' + s[:-2] + '.')
-        return False if a & 0x10 else True
+        if for_coordmv_queue:
+            return False if a & 0x80 else True
+        else:
+            return False if a & 0x10 else True
 
     def set_motion_par(self, command, params):
         for i in range(self.robot.DOF):
@@ -113,10 +124,10 @@ class Commander:
 
     def init_communication(self):
         s = self.rcon.read(1024)
-        self.rcon.write("ECHO:0\n")
-        self.rcon.write("VER?\n")
-        s = self.rcon.read(1024)
-        print(s)
+        self.rcon.write("\nECHO:0\n")
+        self.sync_cmd_fifo()
+        s = self.query('VER')
+        print('Firmware version : ' + s)
 
     def set_int_param_for_axes(self, param, val, axes_list=None):
         if axes_list is None:
@@ -138,9 +149,23 @@ class Commander:
         print('COORDGRP:', axes_coma_list)
         self.wait_ready()
         self.coord_axes = axes_list
+        self.last_trgt_irc = None
+
+    def throttle_coordmv(self):
+        throttled = False
+        if self.coordmv_commands_to_next_check <= 0:
+            self.coordmv_commands_to_next_check = 20
+        else:
+            self.coordmv_commands_to_next_check -= 1
+            return
+        while not self.check_ready(for_coordmv_queue = True):
+            if not throttled:
+                print('coordmv queue full - waiting')
+            throttled = True
+        return throttled
 
     def coordmv(self, pos, min_time=None, relative=False):
-
+        self.throttle_coordmv()
         cmd = 'COORDMV' if not relative else 'COORDRELMVT'
         if (min_time is not None) and not relative:
             cmd += 'T'
@@ -151,12 +176,20 @@ class Commander:
             cmd += str(int(round(min_time)))
             if len(pos) > 0:
                 cmd += ','
-        cmd += ','.join([str(int(round(p))) for p in pos])
+        pos = [int(round(p)) for p in pos]
+        cmd += ','.join([str(p) for p in pos])
         print('cmd', cmd)
         self.rcon.write(cmd + '\n')
+        if relative:
+            if self.last_trgt_irc is None:
+                return
+            pos = [p + t for p,t in zip(pos, self.last_trgt_irc)]
+            # pos = map(int.__add__, pos, self.last_trgt_irc)
+        self.last_trgt_irc = pos
 
     def splinemv(self, param, order=1, min_time=None):
-
+        self.throttle_coordmv()
+        param = [int(round(p)) for p in param]
         cmd = 'COORDSPLINET'
         if min_time is None:
             min_time = 0
@@ -165,16 +198,28 @@ class Commander:
         cmd += ','
         cmd += str(int(round(order)))
         cmd += ','
-        cmd += ','.join([str(int(round(p))) for p in param])
-        # cmd += ','.join([str(int(round(p))) + ',0' for p in param])
+        cmd += ','.join([str(p) for p in param])
 
         print('cmd', cmd)
         self.rcon.write(cmd + '\n')
+
+        if self.last_trgt_irc is None:
+            return
+        m = 0
+        o = 0
+        for p in param:
+           self.last_trgt_irc[m] += p
+           o += 1
+           if o >= order:
+               o = 0
+               m += 1
 
     def hard_home(self, axes_list=None):
         # Hard-home
         if axes_list is None:
             axes_list = self.robot.hh_axes_list
+
+        self.last_trgt_irc = None
 
         self.rcon.write('HH' + axes_list[1] + ':\n')
         self.wait_ready()
@@ -192,21 +237,21 @@ class Commander:
         self.coordmv(self.anglestoirc(np.array(self.robot.shdeg)))
         self.wait_ready()
 
-        self.last_trgt_irc=None
-
     def query(self, query):
         buf = '\n'
-        while len(self.rcon.read(1024)) != 0:
-            pass
-        self.rcon.write(query + '?\n')
+        self.rcon.write('\n' + query + '?\n')
         while True:
             buf += self.rcon.read(1024)
             i = buf.find('\n' + query + '=')
             if i < 0:
                 continue
-            if buf[i+1:].find('\n') != -1:
+            j = buf[i+1:].find('\n')
+            if j != -1:
                 break
-        return buf[i+2+len(query):]
+        if buf[i+1+j-1] == '\r':
+            j -= 1
+        res = buf[i+2+len(query):i+1+j]
+        return res
 
     def command(self, command):
         self.rcon.write(command + ':\n')
@@ -237,15 +282,11 @@ class Commander:
         # print('Valid list:', valid_lst)
         if self.last_trgt_irc is None:
             relative=False
-        prev_irc = self.last_trgt_irc
 
-        self.last_trgt_irc = [int(round(p)) for p in irc]
         if relative:
+            prev_irc = self.last_trgt_irc
             irc = list(irc - prev_irc)
-        if relative:
-            self.splinemv(irc)
-        else:
-            self.coordmv(irc, relative=relative)
+        self.coordmv(irc, relative=relative)
         return a[num]
 
     def wait_ready(self, sync=False):
