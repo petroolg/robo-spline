@@ -1,54 +1,12 @@
 ''' Module provides functions for points interpolation using splines of 3rd order '''
 
 import numpy as np
-from CRS_commander import Commander
 from matplotlib import pyplot as plt
-
-
-def circle_points(c, #type: Commander
-             x=500, y0=250, z0=500, r=50, step=5):
-
-    sol = np.array([[0]*6])
-    prev_a = None
-    rng = 360/step
-    for i in range(rng+1):
-        y = y0 + r*np.cos((i*step)/180.0*np.pi)
-        z = z0 + r*np.sin((i*step)/180.0*np.pi)
-        pos = [x, y, z, 0, 0, 0]
-        # print('pos', pos)
-        # print('i', i)
-        prev_a = move_to_pos(c, pos, prev_a)
-        sol = np.append(sol, [prev_a], axis=0)
-    sol = np.delete(sol, 0, 0)
-    return sol
-
-def move_to_pos(c, pos, prev_pos=None):
-    a = c.robot.ikt(c.robot, pos)
-    valid_lst = []
-    num = -1
-    for i in range(len(a)):
-        irc = c.anglestoirc(a[i])
-        validm = irc > c.robot.bound[0]
-        validp = irc < c.robot.bound[1]
-        valid = np.logical_and(validm, validp)
-        if np.all(valid):
-            num = i if num == -1 else num
-            valid_lst.append(i)
-
-    if prev_pos is not None:
-        min_dist = 10000
-        for i, s in enumerate(a):
-            dist = np.linalg.norm(np.array(a[i]) - prev_pos)
-            if dist < min_dist and i in valid_lst:
-                min_dist = dist
-                num = i
-    # print c.anglestoirc(a[num])
-    return c.anglestoirc(a[num])
 
 
 def cubic_spline(x):
     dim = len(x[0])
-    v0 = (4 * x[1] - 3 * x[0] - x[2])/2
+    v0 = (4 * x[1] - 3 * x[0] - x[2]) / 2
     vn = (4 * x[-2] - 3 * x[-1] - x[-3]) / 2
 
     b = -3 * x[1:-3] + 3* x[3:-1]
