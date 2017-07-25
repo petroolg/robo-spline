@@ -256,7 +256,7 @@ class Commander:
     def command(self, command):
         self.rcon.write(command + ':\n')
 
-    def move_to_pos(self, pos, prev_pos = None, relative=False):
+    def move_to_pos(self, pos, prev_pos = None, relative=False, move=True):
         a = self.robot.ikt(self.robot, pos)
         num = -1
         irc = []
@@ -280,14 +280,15 @@ class Commander:
         # print('Number of solution:', num)
         # print('Solution:', a[num])
         # print('Valid list:', valid_lst)
-        if self.last_trgt_irc is None:
-            relative=False
+        if move:
+            if self.last_trgt_irc is None:
+                relative=False
 
-        if relative:
-            prev_irc = self.last_trgt_irc
-            irc = list(irc - prev_irc)
-        self.coordmv(irc, relative=relative)
-        return a[num]
+            if relative:
+                prev_irc = self.last_trgt_irc
+                irc = list(irc - prev_irc)
+            self.coordmv(irc, relative=relative)
+        return irc
 
     def wait_ready(self, sync=False):
         buf = '\n'
@@ -364,13 +365,17 @@ class Commander:
         self.hard_home()
         print("Hard home done!")
 
-    def circle(self, x=500, y0=250, z0=500, r=50):
+    def circle(self, x=500, y0=250, z0=500, r=50, step=5, move=True):
         pos = [x, y0+r, z0, 0, 0, 0]
-        prev_a = self.move_to_pos(pos)
-        for i in range(360):
-            y = y0 + r*np.cos(i/180.0*np.pi)
-            z = z0 + r*np.sin(i/180.0*np.pi)
+        prev_a = self.move_to_pos(pos, move=move)
+        sol = np.array([[0] * 6])
+        rng = 360 / step
+        for i in range(rng + 1):
+            y = y0 + r * np.cos((i * step) / 180.0 * np.pi)
+            z = z0 + r * np.sin((i * step) / 180.0 * np.pi)
             pos = [x, y, z, 0, 0, 0]
-            # print('pos', pos)
-            # print('i', i)
-            prev_a = self.move_to_pos(pos, prev_a, relative=True)
+            prev_a = self.move_to_pos(pos, prev_a, relative=True, move=move)
+            sol = np.append(sol, [prev_a], axis=0)
+        sol = np.delete(sol, 0, 0)
+        return sol
+
