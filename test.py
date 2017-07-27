@@ -33,11 +33,13 @@ if __name__ == '__main__':
     parser.add_argument('-z', '--z-coord', dest='z0', type=int,
                         default=500, help='z coord. of circle center')
     parser.add_argument('-r', '--radius', dest='r', type=int,
-                        default=50, help='radius of circle')
+                        default=100, help='radius of circle')
     parser.add_argument('-st', '--step', dest='step', type=int,
                         default=5, help='step of circle sampling in degs')
-    parser.add_argument('-g', '--graph', dest='graph', type=str,
-                        default=True, help='graph only')
+    parser.add_argument('-g', '--graph', dest='graph', action='store_true',
+                        default=True, help='graph only without movement')
+    parser.add_argument('-o', '--order', dest='order', type=int,
+                        default=2, help='order of b-spline')
 
     args = parser.parse_args()
 
@@ -45,28 +47,28 @@ if __name__ == '__main__':
     skip_setup = args.skip_setup
     max_speed = args.max_speed
     reg_type = args.reg_type
-    action = 'b-spline' #args.action
+    action = args.action
     x0 = args.x0
     y0 = args.y0
     z0 = args.z0
     graph = args.graph
     radius = args.r
-    step = 90#args.step
+    step = args.step
+    order = args.order
 
     robot = robCRS97()
     c = Commander(robot)
-    # c.open_comm(tty_dev)
+    c.open_comm(tty_dev)
 
     if not skip_setup or action == 'home':
         c.init(reg_type=reg_type, max_speed=max_speed)
 
     if graph:
-        move=False
-        sol = c.circle(x0, y0, z0, radius, step, move)
+        sol = c.circle(x0, y0, z0, radius, step, move=False)
         if action=='poly':
             poly.interpolate(sol, graph=True)
         if action=='b-spline':
-            b_spline.interpolate(sol, graph=True)
+            b_spline.interpolate(sol, order=order,graph=True)
 
     if action == 'circle':
         c.circle(x0, y0, z0, radius, step=1)
@@ -84,16 +86,16 @@ if __name__ == '__main__':
         c.wait_ready(sync=True)
 
 
-    if action == 'b-spline_2' and not graph:
+    if action == 'b-spline' and not graph:
         sol = c.circle(x0, y0, z0, radius, step, move=False)
-        b_spline.interpolate(sol, graph=False)
+        b_spline.interpolate(sol, order=order,graph=False)
 
-        params = np.load('param_spline.npy')
+        params = np.load('param_spline_%d.npy'%order)
         pos = [x0, y0+radius, z0, 0, 0, 0]
         prev_a = c.move_to_pos(pos)
         c.wait_ready(sync=True)
         for i in range(len(params)):
-            c.splinemv( params[i], order=2)
+            c.splinemv( params[i], order=order)
         c.wait_ready(sync=True)
 
     if action == 'grip':
