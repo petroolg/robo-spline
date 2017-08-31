@@ -259,8 +259,7 @@ class Commander:
     def move_to_pos(self, pos, prev_pos = None, relative=False, move=True):
         a = self.robot.ikt(self.robot, pos)
         num = -1
-        irc = []
-        min_dist = 10000
+        min_dist = float('Inf')
         for i in range(len(a)):
             irc = self.robot.anglestoirc(a[i])
             validm = irc > self.robot.bound[0]
@@ -268,7 +267,7 @@ class Commander:
             valid = np.logical_and(validm, validp)
             if np.all(valid):
                 if prev_pos is not None:
-                    dist = np.linalg.norm(np.array(a[i]) - prev_pos)
+                    dist = np.linalg.norm(np.array(irc) - prev_pos)
                     if dist < min_dist:
                         min_dist = dist
                         num = i
@@ -354,6 +353,7 @@ class Commander:
         self.init_robot()
         reg_type = kwargs.get('reg_type', None)
         max_speed = kwargs.get('max_speed', None)
+
         if reg_type is not None:
             self.rcon.write("RELEASE:\n")
             self.set_int_param_for_axes(param='REGTYPE', val=reg_type)
@@ -367,15 +367,28 @@ class Commander:
 
     def circle(self, x=500, y0=250, z0=500, r=50, step=5, move=True):
         pos = [x, y0+r, z0, 0, 0, 0]
-        prev_a = self.move_to_pos(pos, move=move)
-        sol = np.array([[0] * 6])
+        prev_a = self.move_to_pos(pos, relative=False, move=move)
+        sol = np.zeros((1,6))
         rng = 360 / step
         for i in range(rng + 1):
             y = y0 + r * np.cos((i * step) / 180.0 * np.pi)
             z = z0 + r * np.sin((i * step) / 180.0 * np.pi)
             pos = [x, y, z, 0, 0, 0]
-            prev_a = self.move_to_pos(pos, prev_a, relative=True, move=move)
+            prev_a = self.move_to_pos(pos, prev_a, relative=False, move=move)
             sol = np.append(sol, [prev_a], axis=0)
+        sol = np.delete(sol, 0, 0)
+        return sol
+
+    def line(self, x0, x1, step=5, move=True):
+        x = x0
+        prev_x = self.move_to_pos(x, relative=False, move=move)
+        sol = np.zeros((1, 6))
+        rng = int(np.linalg.norm(np.array(x0) - np.array(x1)) / step)
+        normal = (np.array(x1) - np.array(x0))/np.linalg.norm(np.array(x0) - np.array(x1))
+        for i in range(rng):
+            x = x + normal*step
+            prev_x = self.move_to_pos(x, prev_x, relative=False, move=move)
+            sol = np.append(sol, [prev_x], axis=0)
         sol = np.delete(sol, 0, 0)
         return sol
 
