@@ -7,8 +7,8 @@ from matplotlib import pyplot as plt
 def b_spline_2(x):
 
     n = len(x)
-    if n < 5:
-        raise Exception('Not enough points for interpolation of 2nd order. Minimal number for spline of 2nd order is 5.')
+    assert n > 5, 'Not enough points for interpolation of 2nd order. Minimal number for spline of 2nd order is 5.'
+
     x = np.hstack([np.linspace(0, n-1, n)[np.newaxis].T, x])
     M0 = np.array([[2, -4, 2], [0, 4, -3], [0, 0, 1]])
     M1 = np.array([[1, -2, 1], [1, 2, -2], [0, 0, 1]])
@@ -22,15 +22,16 @@ def b_spline_2(x):
     lst.append(0.5 * x.T[:,-3:].dot(M2))
 
     param = [[(lst[i][1:])[:, 1:]] for i in range(len(lst))]
-    param = np.reshape(param, [len(lst), 12])
-    np.save('param_spline_2', param)
+    param = np.reshape(param, [len(lst), (x.shape[1]-1)*2])
+    np.save('param_b_spline_2', param)
 
     return lst
 
 def b_spline_3(x):
+
     n = len(x)
-    if n < 7:
-        raise Exception('Not enough points for interpolation. Minimal number for spline of 3rd order is 7.')
+    assert n > 7, 'Not enough points for interpolation. Minimal number for spline of 3rd order is 7.'
+
     x = np.hstack([np.linspace(0, n - 1, n)[np.newaxis].T, x])
     M0 = np.flip(np.array([[-12, 36, -36, 12],
                    [21, -54, 36, 0],
@@ -68,8 +69,8 @@ def b_spline_3(x):
     lst.append(1.0/12.0 * x.T[:, -4:].dot(M4))
 
     param = [[(lst[i][1:])[:, 1:]] for i in range(len(lst))]
-    param = np.reshape(param, [len(lst), 18])
-    np.save('param_spline_3', param)
+    param = np.reshape(param, [len(lst), (x.shape[1]-1)*3])
+    np.save('param_b_spline_3', param)
 
     return lst
 
@@ -79,17 +80,16 @@ def interpolate(points, order=2, graph=False):
     t2 = np.array([])
     if order==2:
         SP = b_spline_2(points) #type: np.ndarray
-        t2 = np.array([np.linspace(0, 1, res) ** 0, np.linspace(0, 1, res), np.linspace(0, 1, res) ** 2])
+        t2 = np.array([np.ones(res), np.linspace(0, 1, res), np.linspace(0, 1, res) ** 2])
     else:
         SP = b_spline_3(points)  # type: np.ndarray
-        t2 = np.array([np.linspace(0, 1, res) ** 0, np.linspace(0, 1, res), np.linspace(0, 1, res) ** 2, np.linspace(0, 1, res) ** 3])
+        t2 = np.array([np.ones(res), np.linspace(0, 1, res), np.linspace(0, 1, res) ** 2, np.linspace(0, 1, res) ** 3])
 
     if graph:
         t = np.arange(0, points.shape[0])
 
         x = np.array([np.array(SP[0]).dot(t2)][0])
         for K in range(1, len(SP)):
-            f = np.array(SP[K]).dot(t2)
             x = np.hstack([x, np.array(SP[K]).dot(t2)])
 
         #plotting against vector x[0] instead of t

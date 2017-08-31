@@ -35,11 +35,11 @@ def cubic_spline(x):
         lst[i] = np.insert(lst[i], 0, k0[i], axis=0)
         lst[i] = np.append(lst[i], [kn[i]], axis=0)
 
-    [A, B, C, D] = lst
+    [A, B, C, _] = lst
     param_lst = []
     for i in range(len(lst[0])):
         param = np.vstack((C[i], B[i], A[i]))
-        param = np.reshape(param.T, [1, 18], order='C')
+        param = np.reshape(param.T, [1, x.shape[1]*3], order='C')
         param_lst.append(list(param[0]))
 
     np.save('param', param_lst)
@@ -62,6 +62,6 @@ def interpolate(points, graph=False):
         x = np.array(x)[np.newaxis].T
         t3 = np.linspace(0, N, N*res)
         plt.plot(t, points.T[0], t, points.T[1], t, points.T[2], t, points.T[3], t, points.T[4], t, points.T[5],
-                 t3, x[0], t3, x[1], t3, x[2], t3, x[3], t3, x[4], t3, x[5] )
+                 t3, x[0], t3, x[1], t3, x[2], t3, x[3], t3, x[4], t3, x[5])
 
         plt.show()
