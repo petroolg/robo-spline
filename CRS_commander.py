@@ -8,14 +8,16 @@ import serial
 import time
 from robotCRS97 import *
 
+
 class Commander:
 
     def __init__(self, robot, rcon=None):
         self.robot = robot
         self.rcon = rcon #type: serial.Serial
-        self.stamp = int(time.time()%0x7fff)
+        self.stamp = int(time.time() % 0x7fff)
         self.last_trgt_irc = None
         self.coordmv_commands_to_next_check = 0
+        self.coord_axes = None
 
     def set_rcon(self, rcon):
         if self.rcon is not None:
@@ -200,19 +202,18 @@ class Commander:
         cmd += ','
         cmd += ','.join([str(p) for p in param])
 
-        print('cmd', cmd)
         self.rcon.write(cmd + '\n')
 
-        if self.last_trgt_irc is None:
-            return
-        m = 0
-        o = 0
-        for p in param:
-           self.last_trgt_irc[m] += p
-           o += 1
-           if o >= order:
-               o = 0
-               m += 1
+        return cmd
+
+    def axis_get_pos(self, axis_lst=None):
+        if axis_lst is None:
+            axis_lst = self.robot.coord_axes
+        pos = []
+        for a in axis_lst:
+            p = int(self.query('AP' + a))
+            pos.append(p)
+        return pos
 
     def hard_home(self, axes_list=None):
         # Hard-home
@@ -364,31 +365,3 @@ class Commander:
         print("Running hard home")
         self.hard_home()
         print("Hard home done!")
-
-    def circle(self, x=500, y0=250, z0=500, r=50, step=5, move=True):
-        pos = [x, y0+r, z0, 0, 0, 0]
-        prev_a = self.move_to_pos(pos, relative=False, move=move)
-        sol = np.zeros((1,6))
-        rng = 360 / step
-        for i in range(rng + 1):
-            y = y0 + r * np.cos((i * step) / 180.0 * np.pi)
-            z = z0 + r * np.sin((i * step) / 180.0 * np.pi)
-            pos = [x, y, z, 0, 0, 0]
-            prev_a = self.move_to_pos(pos, prev_a, relative=False, move=move)
-            sol = np.append(sol, [prev_a], axis=0)
-        sol = np.delete(sol, 0, 0)
-        return sol
-
-    def line(self, x0, x1, step=5, move=True):
-        x = x0
-        prev_x = self.move_to_pos(x, relative=False, move=move)
-        sol = np.zeros((1, 6))
-        rng = int(np.linalg.norm(np.array(x0) - np.array(x1)) / step)
-        normal = (np.array(x1) - np.array(x0))/np.linalg.norm(np.array(x0) - np.array(x1))
-        for i in range(rng):
-            x = x + normal*step
-            prev_x = self.move_to_pos(x, prev_x, relative=False, move=move)
-            sol = np.append(sol, [prev_x], axis=0)
-        sol = np.delete(sol, 0, 0)
-        return sol
-
