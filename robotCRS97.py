@@ -48,10 +48,10 @@ class robCRS:
         self.a = [0, self.L2, 0, 0, 0, 0]
         self.alpha = np.array([90.0, 0.0, 270.0, 90.0, 270.0, 0]) / 180 * np.pi
         self.base = np.eye(4)
-        self.tool = np.array([[0, 0, -1, 0],
-                              [0, 1, 0, 0],
-                              [1, 0, 0, 0],
-                              [0, 0, 0, 1]])
+        self.tool = np.array([[0.0,0.0,-1.0,0.0],
+                              [0.0,1.0, 0.0,0.0],
+                              [1.0, 0.0,0.0,0.0],
+                              [0.0,0.0,0.0,1.0]])
 
         # Base position in degrees
         # (corresponds to position robot.hhirc in IRC)
@@ -168,7 +168,10 @@ class robCRS97(robCRS, object):
         # Speed reduced due to power suply problem
         self.defaultspeed = np.array([30, 8, 20, 30, 30, 55]) * 256
         self.defaultacceleration = np.rint(
-            np.array([(30 / 400), (8 / 400), (20 / 400), (30 / 400), 1 / 2, 3 / 5]) * 256)
+            np.array([(30.0 / 400.0), (8.0 / 400.0), (20.0 / 400.0), (30.0 / 400.0), 1.0 / 2.0, 3.0 / 5.0]) * 256.0)
+        # self.defaultspeed = np.array([180, 48, 120, 180, 180, 300]) * 256.0
+        # self.defaultacceleration = np.rint(
+        #     np.array([(27.0 / 400.0), (7.0 / 400.0), (18.0 / 400.0), (27.0 / 400.0), 1.0 / 2.0, 3.0 / 5.0]) * 256.0)
 
         # Gripper range
         self.gripper_bounds = [1001, 48]
@@ -181,3 +184,32 @@ class robCRS97(robCRS, object):
         # Common parameters for CRS selfs
         super(robCRS97, self).__init__()
 
+class robCRS93(robCRS, object):
+    """Robot specification: CRS93"""
+
+    def __init__(self):
+        self.description = 'CRS 1993 with gripper'
+
+        # Base position in IRC - calibrated !!
+        # (corresponds to position self.hhdeg in degrees)
+        self.hhirc = [-181650, -349, -62200, 99200, 8300, -96500]
+
+        # self bounds in IRC
+        self.bound = [[-370000, -100000, -190000,  -5000, -50000, -199500],
+                 [10000,  100000,   63000, 203500,  67000,  4600]]
+
+        # Speed reduced due to power suply problem
+        self.defaultspeed = np.array([30, 8, 20, 30, 30, 75]) * 256
+        self.defaultacceleration = np.rint(
+            np.array([0.2, (8.0 / 200.0), (20.0 / 250.0), (30.0 / 200.0), 0.5, 3.0]) * 256.0)
+
+        # Gripper range
+        self.gripper_bounds = [840, 103]
+        self.gripper_bounds_force = [840+1000, 103-1000]  # TODO must be verified
+
+        # Axis(motor) of gripper
+        self.gripper_ax = 'G'
+        self.verbose = True
+        # ------------------------------------------------------------------------------
+        # Common parameters for CRS selfs
+        super(robCRS93, self).__init__()

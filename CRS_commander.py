@@ -52,8 +52,8 @@ class Commander:
         self.check_ready()
         self.wait_ready()
 
-        self.set_motion_par('REGMS', self.robot.defaultspeed)
-        self.set_motion_par('REGACC', self.robot.defaultacceleration)
+        self.set_speed_par(self.robot.defaultspeed)
+        self.set_acc_par(self.robot.defaultacceleration)
 
         fields = ['REGME', 'REGCFG', 'REGP', 'REGI', 'REGD']
 
@@ -109,20 +109,35 @@ class Commander:
         else:
             return False if a & 0x10 else True
 
-    def set_motion_par(self, command, params):
+    def set_speed_par(self, params):
         for i in range(self.robot.DOF):
             if self.robot.activemotors[i] != '':
                 if np.imag(params[i]) or params[i] == 0: # relative speed
                     r = np.imag(params[i])
                     if r < 0 or r > 1:
-                        raise  Exception('Relative speed %i out of <0;1>', i)
+                        raise  Exception('Relative speed %i out of <0;1>'%i)
                     params[i] = round(self.robot.minspeed[i] * (1 - r) + self.robot.maxspeed[i] * r)
-                    self.rcon.write('%s%s:%i\n'%(command, self.robot.activemotors[i], params[i]))
+                    self.rcon.write('%s%s:%i\n'%('REGMS', self.robot.activemotors[i], params[i]))
                 elif params[i] < self.robot.minspeed[i] or params[i] > self.robot.maxspeed[i]:
                     # speed is not inside lower and upper bound
-                    raise Exception('Speed %i out of bound', i)
+                    raise Exception('Speed %d is out of bound'%i)
                 else: # set the speed
-                    self.rcon.write('%s%s:%i\n'%(command, self.robot.activemotors[i], params[i]))
+                    self.rcon.write('%s%s:%i\n'%('REGMS', self.robot.activemotors[i], params[i]))
+
+    def set_acc_par(self, params):
+        for i in range(self.robot.DOF):
+            if self.robot.activemotors[i] != '':
+                if np.imag(params[i]) or params[i] == 0: # relative speed
+                    r = np.imag(params[i])
+                    if r < 0 or r > 1:
+                        raise  Exception('Relative acceleration %i out of <0;1>'%i)
+                    params[i] = round(self.robot.minacceleration[i] * (1 - r) + self.robot.maxacceleration[i] * r)
+                    self.rcon.write('%s%s:%i\n'%('REGACC', self.robot.activemotors[i], params[i]))
+                elif params[i] < self.robot.minacceleration[i] or params[i] > self.robot.maxacceleration[i]:
+                    # speed is not inside lower and upper bound
+                    raise Exception('Acceleration %d is out of bound'%i)
+                else: # set the speed
+                    self.rcon.write('%s%s:%i\n'%('REGACC', self.robot.activemotors[i], params[i]))
 
     def init_communication(self):
         s = self.rcon.read(1024)
@@ -257,33 +272,27 @@ class Commander:
     def command(self, command):
         self.rcon.write(command + ':\n')
 
-    def move_to_pos(self, pos, prev_pos = None, relative=False, move=True):
+    def move_to_pos(self, pos, prev_pos=None, relative=False, move=True):
         a = self.robot.ikt(self.robot, pos)
-        num = -1
+        num = None
         min_dist = float('Inf')
+
+        prev_pos = self.anglestoirc(np.array(self.robot.shdeg)) if prev_pos is None else prev_pos
         for i in range(len(a)):
             irc = self.robot.anglestoirc(a[i])
             validm = irc > self.robot.bound[0]
             validp = irc < self.robot.bound[1]
             valid = np.logical_and(validm, validp)
             if np.all(valid):
-                if prev_pos is not None:
-                    dist = np.linalg.norm(np.array(irc) - prev_pos)
-                    if dist < min_dist:
-                        min_dist = dist
-                        num = i
-                else:
+                dist = np.linalg.norm(np.array(irc) - prev_pos)
+                if dist < min_dist:
+                    min_dist = dist
                     num = i
-                    break
 
         irc = self.robot.anglestoirc(a[num])
-        # print('Number of solution:', num)
-        # print('Solution:', a[num])
-        # print('Valid list:', valid_lst)
         if move:
             if self.last_trgt_irc is None:
                 relative=False
-
             if relative:
                 prev_irc = self.last_trgt_irc
                 irc = list(irc - prev_irc)
@@ -331,7 +340,7 @@ class Commander:
             return
         if s.find('\nFAIL!') >= 0:
             self.wait_ready()
-            raise Exception( 'Command \'R:%s\' returned \'FAIL!\''%self.robot.gripper_ax)
+            raise Exception('Command \'R:%s\' returned \'FAIL!\''%self.robot.gripper_ax)
 
     def open_comm(self, tty_dev):
 
@@ -354,6 +363,7 @@ class Commander:
         self.init_robot()
         reg_type = kwargs.get('reg_type', None)
         max_speed = kwargs.get('max_speed', None)
+        hard_home = kwargs.get('hard_home', True)
 
         if reg_type is not None:
             self.rcon.write("RELEASE:\n")
@@ -362,6 +372,7 @@ class Commander:
         if max_speed is not None:
             self.set_max_speed(val=max_speed)
 
-        print("Running hard home")
-        self.hard_home()
-        print("Hard home done!")
+        if hard_home:
+            print("Running hard home")
+            self.hard_home()
+            print("Hard home done!")

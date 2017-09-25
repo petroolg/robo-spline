@@ -14,5 +14,5 @@ def param_correction(start, params, order):
         param[0] = np.round(param[0]) - np.round(diff)
         pos = oldpos.copy() + np.sum(param, axis=0)
         oldpos = pos.copy()
-        params[i] = np.reshape(np.round(param.T), [1, len(start)*order], order='C')
+        params[i] = np.reshape(np.round(param.T), [len(start)*order], order='C')
     return params

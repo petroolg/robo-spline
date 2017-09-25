@@ -6,8 +6,8 @@ import numpy as np
 def robCRSikt(robot, pos):
     """Inverse kinematic task - robot CRS."""
     
-    pos = np.array(pos)
-    pos[3:] = pos[3:] / 180 * np.pi
+    pos = np.array(pos).astype(float)
+    pos[3:] = pos[3:] / 180.0 * np.pi
 
     myeps = 10000 * 2.2204e-16 # equality tolerance
     par1 = 0 # if infinite number of solutions, theta1=par1

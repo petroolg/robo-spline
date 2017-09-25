@@ -58,8 +58,8 @@ def interpolate(points):
 
     for i in range(points.shape[0] - 1):
         param = np.vstack((C[i], B[i], A[i]))
-        param = np.reshape(param.T, [1, points.shape[1]*3], order='C')
-        param_lst.append(list(param[0]))
+        param = np.reshape(param.T, [points.shape[1]*3], order='C')
+        param_lst.append(param)
 
     param_lst = param_correction(points[0], param_lst, 3)
-    np.save('params/param_poly1', param_lst)
+    np.save('params/param_poly', param_lst)
