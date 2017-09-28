@@ -39,12 +39,12 @@ def proc_img(file):
                 img_p.append('*%d,%s\n' % (pix_count, prev_pix))
                 pix_count = 0
             prev_pix = pix
-    return img_p
+    return img_p, height
 
-def open_comm(tty_dev):
+def open_comm(tty_dev, speed=19200):
     print("Opening %s ...\n" % tty_dev)
     ser = serial.Serial(tty_dev,
-                        baudrate=19200,
+                        baudrate=speed,
                         bytesize=serial.EIGHTBITS,
                         parity=serial.PARITY_NONE,
                         stopbits=serial.STOPBITS_ONE,
@@ -80,17 +80,19 @@ if __name__ == '__main__':
     unit = open_comm('COM3')
     power_led(unit)
     time.sleep(5.0)
-    filename = 'img\\pikachu.bmp'
-    stick = open_comm('COM5')
-    img = proc_img(filename)
+    filename = '..\led_sequence.bmp'
+    stick = open_comm('COM5', speed=115200)
+    img, columns = proc_img(filename)
     print query(stick, 'd')
-    print query(stick, 'w1,%s'%filename[:-4], sleep=2.0)
-    query(stick, '*L10\n')
+    print query(stick, 'w1,%s'%filename[3:-4], sleep=2.0)
+    query(stick, '*L%d\n'%(len(img)+7))
     query(stick, '*X72\n')
     query(stick, '*G2500\n')
-    query(stick, '*P2000\n')
-    query(stick, '*Z10000\n')
+    query(stick, '*P8000\n')
+    query(stick, '*Z%d\n'%columns)
     # query(stick, '*C0x010101\n')
+    n = len(img)
+    print('length', n)
     for i in range(len(img)):
         query(stick, img[i])
     query(stick, '*K\n')
@@ -98,6 +100,6 @@ if __name__ == '__main__':
 
     query(stick, 'c0x010101\n')
 
-    start_show(unit)
+    # start_show(unit)
 
 
