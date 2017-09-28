@@ -2,6 +2,7 @@
 
 import numpy as np
 from robCRSikt import robCRSikt
+from robCRSdkt import robCRSdkt
 from robCRSgripper import robCRSgripper, robCRSgripperinit
 
 #  based on BlueBot and Bosch Toolbox
@@ -37,7 +38,8 @@ class robCRS:
         self.degtoirc = self.irc * self.direction * self.gearing * 4 / 360
 
         self.activemotors = 'ABCDEF'
-        self.hh_axes_list = 'ABCDEF'
+        # axes in hh_axes_list are in order of initialization
+        self.hh_axes_list = 'BACDEF'
         self.control_axes_list = 'ABCDEF'
         self.coord_axes = 'ABCDEF'
 
@@ -145,11 +147,9 @@ class robCRS:
         self.gripper_poll_diff = 50
 
         self.ikt = robCRSikt
+        self.dkt = robCRSdkt
 
         self.degtoirc = np.multiply(self.direction, np.multiply(self.irc, self.gearing)) * 4.0 / 360.0
-
-        self.anglestoirc = lambda angles: np.multiply((angles - self.hhdeg), self.degtoirc) + self.hhirc
-        self.irctoangles = lambda irc: np.divide(irc - self.hhirc, self.degtoirc) + self.hhdeg
 
 class robCRS97(robCRS, object):
     """Robot specification: CRS97"""
@@ -169,9 +169,6 @@ class robCRS97(robCRS, object):
         self.defaultspeed = np.array([30, 8, 20, 30, 30, 55]) * 256
         self.defaultacceleration = np.rint(
             np.array([(30.0 / 400.0), (8.0 / 400.0), (20.0 / 400.0), (30.0 / 400.0), 1.0 / 2.0, 3.0 / 5.0]) * 256.0)
-        # self.defaultspeed = np.array([180, 48, 120, 180, 180, 300]) * 256.0
-        # self.defaultacceleration = np.rint(
-        #     np.array([(27.0 / 400.0), (7.0 / 400.0), (18.0 / 400.0), (27.0 / 400.0), 1.0 / 2.0, 3.0 / 5.0]) * 256.0)
 
         # Gripper range
         self.gripper_bounds = [1001, 48]
