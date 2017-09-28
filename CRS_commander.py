@@ -4,6 +4,7 @@
 
 #  based on code by P. Pisa
 
+import sys
 import serial
 import time
 from robotCRS97 import *
@@ -25,14 +26,31 @@ class Commander:
             self.rcon = None
         self.rcon = rcon
 
-    def irctoangles(self, irc):
-        itc = np.array(irc)
-        angles = np.divide(irc - self.robot.hhirc, self.robot.degtoirc) + self.robot.hhdeg
-        return angles
+    def irctoangles(self, a):
+        j = np.atleast_2d(a).shape[1]
+        n = np.atleast_2d(a).shape[0]
+        assert j == self.robot.DOF, 'Wrong number of joints (%d, should be %d).' % (j, self.robot.DOF)
 
-    def anglestoirc(self, angles):
-        irc = np.multiply((angles - self.robot.hhdeg), self.robot.degtoirc) + self.robot.hhirc;
-        return irc
+        b = np.divide((a - np.repeat(np.array([self.robot.hhirc]), n, axis=0)),
+                        np.repeat(np.array([self.robot.degtoirc]), n, axis=0)) \
+            + np.repeat(np.array([self.robot.hhdeg]), n, axis=0)
+        if n == 1:
+            return b[0]
+        else:
+            return b
+
+    def anglestoirc(self, a):
+        j = np.atleast_2d(a).shape[1]
+        n = np.atleast_2d(a).shape[0]
+        assert j == self.robot.DOF, 'Wrong number of joints (%d, should be %d).' % (j, self.robot.DOF)
+
+        b = np.multiply((a - np.repeat(np.array([self.robot.hhdeg]), n, axis=0)),
+                        np.repeat(np.array([self.robot.degtoirc]), n, axis=0)) \
+            + np.repeat(np.array([self.robot.hhirc]), n, axis=0)
+        if n == 1:
+            return np.rint(b[0])
+        else:
+            return np.rint(b)
 
     def degtorad(self, d):
         return d * np.pi / 180.0
@@ -42,6 +60,15 @@ class Commander:
 
     def init_robot(self):
         self.sync_cmd_fifo()
+        if hasattr(self.robot, 'REGPWRON') and self.robot.REGPWRON == 1:
+            self.rcon.write('REGPWRON:%i\n'%self.robot.REGPWRON)
+            print('Press ARM POWER button,\n')
+            if sys.version_info[0] < 3:
+                raw_input('press enter to continue...')
+            else:
+                input('press enter to continue...')
+            self.rcon.write('REGPWRFLG:%i\n'%self.robot.REGPWRFLG)
+
         print('Resetting motors')
         # Purge
         self.rcon.write("PURGE:\n")
@@ -109,7 +136,7 @@ class Commander:
         else:
             return False if a & 0x10 else True
 
-    def set_speed_par(self, params):
+    def set_speed_par(self, params, force=False):
         for i in range(self.robot.DOF):
             if self.robot.activemotors[i] != '':
                 if np.imag(params[i]) or params[i] == 0: # relative speed
@@ -118,13 +145,13 @@ class Commander:
                         raise  Exception('Relative speed %i out of <0;1>'%i)
                     params[i] = round(self.robot.minspeed[i] * (1 - r) + self.robot.maxspeed[i] * r)
                     self.rcon.write('%s%s:%i\n'%('REGMS', self.robot.activemotors[i], params[i]))
-                elif params[i] < self.robot.minspeed[i] or params[i] > self.robot.maxspeed[i]:
+                elif not force and (params[i] < self.robot.minspeed[i] or params[i] > self.robot.maxspeed[i]):
                     # speed is not inside lower and upper bound
                     raise Exception('Speed %d is out of bound'%i)
                 else: # set the speed
                     self.rcon.write('%s%s:%i\n'%('REGMS', self.robot.activemotors[i], params[i]))
 
-    def set_acc_par(self, params):
+    def set_acc_par(self, params, force=False):
         for i in range(self.robot.DOF):
             if self.robot.activemotors[i] != '':
                 if np.imag(params[i]) or params[i] == 0: # relative speed
@@ -133,7 +160,7 @@ class Commander:
                         raise  Exception('Relative acceleration %i out of <0;1>'%i)
                     params[i] = round(self.robot.minacceleration[i] * (1 - r) + self.robot.maxacceleration[i] * r)
                     self.rcon.write('%s%s:%i\n'%('REGACC', self.robot.activemotors[i], params[i]))
-                elif params[i] < self.robot.minacceleration[i] or params[i] > self.robot.maxacceleration[i]:
+                elif not force and (params[i] < self.robot.minacceleration[i] or params[i] > self.robot.maxacceleration[i]):
                     # speed is not inside lower and upper bound
                     raise Exception('Acceleration %d is out of bound'%i)
                 else: # set the speed
@@ -181,8 +208,9 @@ class Commander:
             throttled = True
         return throttled
 
-    def coordmv(self, pos, min_time=None, relative=False):
+    def coordmv(self, pos, min_time=None, relative=False, disc=5):
         self.throttle_coordmv()
+        self.rcon.write('COORDISCONT:%d'%disc + '\n')
         cmd = 'COORDMV' if not relative else 'COORDRELMVT'
         if (min_time is not None) and not relative:
             cmd += 'T'
@@ -204,8 +232,9 @@ class Commander:
             # pos = map(int.__add__, pos, self.last_trgt_irc)
         self.last_trgt_irc = pos
 
-    def splinemv(self, param, order=1, min_time=None):
+    def splinemv(self, param, order=1, min_time=None, disc=5):
         self.throttle_coordmv()
+        self.rcon.write('COORDISCONT:%d' % disc + '\n')
         param = [int(round(p)) for p in param]
         cmd = 'COORDSPLINET'
         if min_time is None:
@@ -218,7 +247,6 @@ class Commander:
         cmd += ','.join([str(p) for p in param])
 
         self.rcon.write(cmd + '\n')
-
         return cmd
 
     def axis_get_pos(self, axis_lst=None):
@@ -235,22 +263,23 @@ class Commander:
         if axes_list is None:
             axes_list = self.robot.hh_axes_list
 
+        self.set_speed_par(self.robot.defaultspeed)
+        self.set_acc_par(self.robot.defaultacceleration)
+
         self.last_trgt_irc = None
 
-        self.rcon.write('HH' + axes_list[1] + ':\n')
-        self.wait_ready()
+        for a in axes_list:
+            self.rcon.write('HH' + a + ':\n')
+            self.wait_ready()
 
-        self.rcon.write('HH' + axes_list[0] + ':\n')
-        self.rcon.write('HH' + axes_list[2] + ':\n')
-        self.wait_ready()
-
-        self.rcon.write('HH' + axes_list[3] + ':\n')
-        self.rcon.write('HH' + axes_list[4] + ':\n')
-        self.rcon.write('HH' + axes_list[5] + ':\n')
-        self.wait_ready()
-
+    def soft_home(self, axes_list=None):
+        if axes_list is None:
+            axes_list = self.robot.hh_axes_list
         self.setup_coordmv()
-        self.coordmv(self.anglestoirc(np.array(self.robot.shdeg)))
+        if hasattr(self.robot, 'shdeg'):
+            self.coordmv(self.anglestoirc(np.array(self.robot.shdeg)))
+        else:
+            self.coordmv(self.anglestoirc(np.array(self.robot.hhdeg)))
         self.wait_ready()
 
     def query(self, query):
@@ -277,9 +306,12 @@ class Commander:
         num = None
         min_dist = float('Inf')
 
-        prev_pos = self.anglestoirc(np.array(self.robot.shdeg)) if prev_pos is None else prev_pos
+        if hasattr(self.robot, 'shdeg'):
+            prev_pos = self.anglestoirc(np.array(self.robot.shdeg)) if prev_pos is None else prev_pos
+        else:
+            prev_pos = self.anglestoirc(np.array(self.robot.hhdeg)) if prev_pos is None else prev_pos
         for i in range(len(a)):
-            irc = self.robot.anglestoirc(a[i])
+            irc = self.anglestoirc(a[i])
             validm = irc > self.robot.bound[0]
             validp = irc < self.robot.bound[1]
             valid = np.logical_and(validm, validp)
@@ -288,8 +320,9 @@ class Commander:
                 if dist < min_dist:
                     min_dist = dist
                     num = i
-
-        irc = self.robot.anglestoirc(a[num])
+        if num == None:
+            return None
+        irc = self.anglestoirc(a[num])
         if move:
             if self.last_trgt_irc is None:
                 relative=False
@@ -342,11 +375,11 @@ class Commander:
             self.wait_ready()
             raise Exception('Command \'R:%s\' returned \'FAIL!\''%self.robot.gripper_ax)
 
-    def open_comm(self, tty_dev):
+    def open_comm(self, tty_dev, speed=19200):
 
         print("Opening %s ...\n" % tty_dev)
         ser = serial.Serial(tty_dev,
-                            baudrate=19200,
+                            baudrate=speed,
                             bytesize=serial.EIGHTBITS,
                             parity=serial.PARITY_NONE,
                             stopbits=serial.STOPBITS_ONE,
@@ -373,6 +406,8 @@ class Commander:
             self.set_max_speed(val=max_speed)
 
         if hard_home:
-            print("Running hard home")
+            print("Running home")
             self.hard_home()
-            print("Hard home done!")
+            self.soft_home()
+            print("Hard and soft home done!")
+

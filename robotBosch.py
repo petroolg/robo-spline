@@ -31,6 +31,9 @@ class robotBosch:
 
         self.DOF = 4
         self.activemotors = 'ABCD'
+        self.hh_axes_list = 'ABDC'
+        self.control_axes_list = 'ABCD'
+        self.coord_axes = 'ABCD'
 
         # Softhome position in IRC and degrees/mm.
         self.hhirc = [0, 0, 0, 0]
@@ -40,7 +43,8 @@ class robotBosch:
         self.degtoirc = np.multiply(self.irc, self.gearing) * 4.0 / 360.0
 
         # Robot bounds in deg/mm converted to IRC
-        self.bound = bbdegtoirc(self, np.array([[85, 120, -330, -20],[-85, -120, 5, 1080]]))
+        self.bound = np.array([[ -80536,  -73434, -146520,   -7919],
+                                [  80536,  73434,    2220,  427637]])
         # 2010-01-29, Martin Matousek
         # this are the realy hard bounds. Its no possible to
         # to reach them with full speed.
@@ -88,17 +92,3 @@ class robotBosch:
 
         # This variable use bbmovex, for help see this fucntion.
         self.pose = 0  # TODO
-
-def bbdegtoirc(robot, a):
-    assert a.shape[1] == robot.DOF, 'Wrong number of joints (%i, should be %i).'%(a.shape[1], robot.DOF)
-
-    n = a.shape[0]
-    b = np.multiply((a - np.repeat(np.array([robot.hhdeg]), n, axis=0)),
-                    np.repeat(np.array([robot.degtoirc]), n, axis=0)) \
-    + np.repeat(np.array([robot.hhirc]), n, axis=0)
-    return b
-
-
-if __name__ == '__main__':
-    r = robotBosch()
-    print r.ikt(r, [200, 100, 10, 20])
