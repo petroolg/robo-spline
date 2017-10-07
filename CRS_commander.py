@@ -130,7 +130,7 @@ class Commander:
         if a & 0x20000:
             s = s + 'motion stop, '
         if s:
-            raise Exception('Check ready:' + s[:-2] + '.')
+            raise Exception('Check ready: %s.'%s[:-2])
         if for_coordmv_queue:
             return False if a & 0x80 else True
         else:
@@ -252,11 +252,14 @@ class Commander:
     def axis_get_pos(self, axis_lst=None):
         if axis_lst is None:
             axis_lst = self.robot.coord_axes
-        pos = []
-        for a in axis_lst:
-            p = int(self.query('AP' + a))
-            pos.append(p)
-        return pos
+        resp = self.query('COORDAP')
+        try:
+            resp = np.array(map(int,resp.split(',')))
+        except:
+            print('Error responce', resp)
+        t = resp[0]
+        pos = resp[-6:]
+        return t, pos
 
     def hard_home(self, axes_list=None):
         # Hard-home

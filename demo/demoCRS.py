@@ -7,6 +7,7 @@ import sched
 import serial
 from serial import Serial
 
+
 FREC = 1.0 / 8000.0 * 1e6
 
 def open_comm(tty_dev, speed=19200):
@@ -22,97 +23,129 @@ def open_comm(tty_dev, speed=19200):
 
 def start_show(rcon):
     rcon.write('GH:30\n')
+    # time.sleep(1.0)
+    # rcon.write('GH:327\n')
+
+def gather_irc(c, show_start, sol):
+    # Gather place-time irc
+    time_pos_irc = []
+    pos = sol[0]
+    end_pos = sol[-1]
+    d = max(pos-end_pos)
+    done = False
+    start = time.time()
+    while d > 30.0:
+
+        t, pos = c.axis_get_pos()
+        time_pos_irc.append((t, pos))
+        d = max(pos-end_pos)
+        if not done and time.time() - start > 60:
+            c.rcon.write('GH:327\n')
+            done = True
+        # print d
+
+    print('Number of gathered points:%d'%(len(time_pos_irc)))
+    c.wait_ready()
+    print('End of motion, elapsed time: %f' % (time.time() - show_start))
+
+    # Convert place-time irc to time-coordinates tuple
+    gain = 0
+    coord = [np.hstack((gain, robCRSdkt(c.robot, c.irctoangles(time_pos_irc[0][1]))))]
+    for i in range(1, len(time_pos_irc)-1):
+        ang = c.irctoangles(time_pos_irc[i][1])
+        diff = time_pos_irc[i][0] - time_pos_irc[i-1][0]
+        if diff < 0:
+            diff += 0xffff
+        gain += diff
+        # print('diff', diff)
+        coord.append(np.hstack((gain/1000.0, robCRSdkt(c.robot,ang))))
+    np.save('demo/trajectory/gathered_points.npy', np.array(coord))
+    return np.array(coord)
+
+def set_show_params(c):
+    speed = np.array([180, 48, 120, 180, 180, 300]) * 256.0
+    acceleration = np.rint(
+        np.array([(15.0 / 400.0), (4.0 / 400.0), (10.0 / 400.0), (15.0 / 400.0), 0.5 / 2.0, 1.5 / 5.0]) * 256.0)
+
+    c.set_speed_par(speed, force=True)
+    c.set_acc_par(acceleration, force=True)
+    # c.setup_coordmv('ABCDEFH')
+
+    c.rcon.write('REGMEH:32730\n')
+    c.rcon.write('REGIH:0\n')
+    c.rcon.write('REGDH:0\n')
+    c.rcon.write('REGPH:100\n')
+    c.rcon.write('GH:0\n')
     time.sleep(1.0)
-    rcon.write('GH:327\n')
+    c.rcon.write('GH:327\n')
+
+def coord_to_irc(c, points):
+    sol = np.empty((1, 6))
+    prev_a = None
+    for p in points:
+        # print( cy + np.cos(a)*r, cz + np.sin(a)*r)
+        prev_a = c.move_to_pos(p, prev_a, move=False)
+        sol = np.append(sol, [prev_a], axis=0)
+    sol = np.delete(sol, 0, 0)
+    return sol
 
 def showCRS(c):
-    # self.defaultspeed = np.array([30, 8, 20, 30, 30, 55]) * 256
-    # self.defaultacceleration = np.rint(
-    #     np.array([(30.0 / 400.0), (8.0 / 400.0), (20.0 / 400.0), (30.0 / 400.0), 1.0 / 2.0, 3.0 / 5.0]) * 256.0)
-
+    print('demo started')
     if c.rcon:
-        speed = np.array([120, 32, 80, 120, 120, 200]) * 256.0
-        acceleration = np.rint(
-             np.array([(15.0 / 400.0), (4.0 / 400.0), (10.0 / 400.0), (15.0 / 400.0), 0.5 / 2.0, 1.5 / 5.0]) * 256.0)
+        set_show_params(c)
+        c.check_ready()
+    print('set parameters')
+    # convert SVG to path
+    blcorn, im_size, size_ratio, orig_x, orig_y = svg_to_coord('demo/trajectory/traj2.svg', [-240.0, 300.0], 480.0)
+    points = np.load('demo/trajectory/trajectory.npy')
+    sol = coord_to_irc(c, points)
 
-        c.set_speed_par(speed,force=True)
-        c.set_acc_par(acceleration,force=True)
-        # c.setup_coordmv('ABCDEFH')
+    # interpolate points
+    poly.interpolate(sol)
+    params = np.load('params/param_poly.npy')
+    order = 3
 
-        c.rcon.write('REGMEH:32730\n')
-        c.rcon.write('REGIH:0\n')
-        c.rcon.write('REGDH:0\n')
-        c.rcon.write('REGPH:100\n')
-        c.rcon.write('GH:0\n')
-        time.sleep(1.0)
-        c.rcon.write('GH:327\n')
-    #
-    # # convert SVG to path
-    # blcorn, im_size = svg_to_coord('demo/traj.svg', [-240.0, 200.0], 480.0)
-    # points = np.load('demo/trajectory.npy')
-    # sol = np.empty((1,6))
-    # prev_a = None
-    # for p in points:
-    #     # print( cy + np.cos(a)*r, cz + np.sin(a)*r)
-    #     prev_a = c.move_to_pos(p, prev_a, move=False)
-    #     sol = np.append(sol, [prev_a], axis=0)
-    # sol = np.delete(sol, 0, 0)
-    #
-    # # interpolate points
-    # poly.interpolate(sol)
-    # params = np.load('params/param_poly.npy')
-    # order = 3
-    #
-    # print('length of params: %d'%(len(params)))
-    #
-    # # Gathering exact sequence of place-time
-    # c.move_to_pos(points[0])
-    # c.wait_ready(sync=True)
-    # time_pos_irc = []
-    #
-    # show_start = time.time() + 8.0
-    # c.splinemv(np.zeros(18), order=3, min_time=8000)
-    # preload_s = min(120,len(params))
-    # for i in range(preload_s):
-    #     c.splinemv(params[i], order=order)
-    # wait = show_start - time.time()
-    # if wait > 0:
-    #     time.sleep(wait)
-    # start_show(c.rcon)
-    # print 'Waiting time%f'%wait
-    # for i in range(preload_s, len(params)):
-    #     c.splinemv(params[i], order=order)
-    #
-    #
-    # # Gather place-time irc
-    # pos = sol[0]
-    # end_pos = sol[-1]
-    # d = max(pos-end_pos)
-    # while d > 20.0:
-    #     pos = c.axis_get_pos()
-    #     time_pos_irc.append((time.time(), pos))
-    #     d = max(pos-end_pos)
-    #
-    # print('Number of gathered points:%d'%(len(time_pos_irc)))
-    #
-    # c.wait_ready()
-    # print('End of motion%f' % (time.time() - show_start))
-    #
-    # # Convert place-time irc to time-coordinates tuple
-    # coord = []
-    # for tpi in time_pos_irc:
-    #     ang = c.irctoangles(tpi[1])
-    #     coord.append(np.hstack((tpi[0], robCRSdkt(c.robot,ang))))
-    # coord = np.array(coord)
-    #
-    # # Convert space coordinates to image coordinates
-    # time_pos_rot = coord_to_image(coord,[-240.0, 200.0], im_size, blcorn)
-    #
-    # plt.plot(time_pos_rot[:,1], time_pos_rot[:,2])
-    # plt.show()
-    #
-    # np.save('time_pos_rot.npy', time_pos_rot)
-    time_pos_rot = np.load('time_pos_rot.npy')
+    print('length of params: %d'%(len(params)))
+
+    # Gathering exact sequence of place-time
+    c.move_to_pos(points[0])
+    c.wait_ready(sync=True)
+
+    show_start = time.time() + 6.7
+    c.splinemv(np.zeros(18), order=3, min_time=7000)
+    preload_s = min(120,len(params))
+    times = np.load('demo/trajectory/times.npy')
+    for i in range(preload_s):
+        c.splinemv(params[i], order=order, min_time=80)
+    wait = show_start - time.time()
+    if wait > 0:
+        time.sleep(wait)
+    start_show(c.rcon)
+    # print 'Waiting time%f'%(wait)
+    for i in range(preload_s, len(params)):
+        c.splinemv(params[i], order=order,min_time=80)
+
+    coord_real = gather_irc(c, show_start, sol)
+    c.wait_ready()
+    el_time = time.time() - show_start
+    times = np.cumsum(np.ones_like(times)*0.08)[np.newaxis].T
+    times = times / times[-1] * el_time
+    coord_theor = np.hstack((times,points))
+
+    # Convert space coordinates to image coordinates
+    coord_real = np.load('demo/trajectory/gathered_points.npy')
+    # time_pos_rot_theor = coord_to_image(coord_theor,[-240.0, 200.0], im_size, blcorn,'Theoretical')
+    time_pos_rot_real = coord_to_image(coord_real, [-240.0, 200.0], im_size, blcorn,'Real')
+
+    plt.plot(time_pos_rot_real[:, 1], time_pos_rot_real[:, 2],label='real raw')
+    # plt.plot(time_pos_rot_theor[:,1], time_pos_rot_theor[:,2], label='theoretical')
+    plt.legend()
+    plt.waitforbuttonpress()
+    plt.close()
+
+    np.save('demo/trajectory/time_pos_rot.npy', time_pos_rot_real)
+    time_pos_rot = np.load('demo/trajectory/time_pos_rot.npy')
 
     # Extract sequence of pixels for stick from image
-    extract_seq('bk/img/the_starry_night-wallpaper-1366x768.bmp', time_pos_rot, 480.0, FREC)
+    # extract_seq('demo/img/STRIPEMAIN_900x.bmp', time_pos_rot, size_ratio, FREC, orig_x, orig_y)
+    extract_seq('demo/img/the_starry_night-wallpaper-1366x768.bmp', time_pos_rot, size_ratio, FREC, orig_x, orig_y)

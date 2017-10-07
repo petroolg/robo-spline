@@ -27,21 +27,45 @@ def proc_img(file):
     print 'ready'
 
     img_p = []
+    pix_count = 0
     for r in range(height):
-        pix, prev_pix = 0x0, 0x0
-        pix_count = 0
+        prev_pix = img[r][0]
         for col in range(widht):
             pix = img[r][col]
-            if (pix == prev_pix or col == 0) and col < widht - 1:
+            if (pix == prev_pix):
                 pix_count += 1
             else:
-                pix_count += 1
                 img_p.append('*%d,%s\n' % (pix_count, prev_pix))
-                pix_count = 0
+                pix_count = 1
             prev_pix = pix
+        if pix_count > 0:
+            img_p.append('*%d,%s\n' % (pix_count, prev_pix))
+            pix_count = 0
+
+    img_p = np.array(img_p)
+    # n, s = 0, -1
+    # deleted = 0
+    # for i, row in enumerate(img_p):
+    #     if row == '*72,0x0\n':
+    #         if s == -1:
+    #             s = i - deleted
+    #         n += 1
+    #         continue
+    #     if n > 0:
+    #         deleted += n
+    #         img_p = np.delete(img_p, np.arange(s, s+n))
+    #         img_p = np.insert(img_p, s, '*B1,%d\n'%n)
+    #         img_p = np.insert(img_p, s+1, '*72,0x0\n')
+    #         s, n = -1, 0
+    # if n > 0:
+    #     deleted += n
+    #     img_p = np.delete(img_p, np.arange(s, s + n))
+    #     img_p = np.insert(img_p, s, '*B1,%d\n' % n)
+    #     img_p = np.insert(img_p, s + 1, '*72,0x0\n')
+    #     s, n = -1, 0
     return img_p, height
 
-def open_comm(tty_dev, speed=19200):
+def open_comm(tty_dev, speed=38400):
     print("Opening %s ...\n" % tty_dev)
     ser = serial.Serial(tty_dev,
                         baudrate=speed,
@@ -59,6 +83,30 @@ def query(rcon, query, sleep=0.0):
         time.sleep(sleep)
     buf = rcon.read(1024)
     return buf
+
+def control_seq(seq, height):
+    out_im = Image.new("RGB", (72, height), (0, 0, 0))
+    row, column = 0,0
+    for j, s in enumerate(seq):
+        n, color = s.split(',')
+
+        if n == '*B1':
+            column=0
+            continue
+        n = int(n[1:])
+        color = int(color, 16)
+        color = (int((color & 0xFF0000) >> 16), int((color & 0x00FF00) >> 8), int(color & 0x0000FF))
+        for i in range(n):
+            try:
+                out_im.putpixel((column, row), color)
+            except:
+                print('rvrve', column, row)
+            column += 1
+        if column == 72:
+            row+=1
+            column = 0
+    out_im = out_im.crop((0,0,72,row))
+    out_im.save('generated_files/rec_led_seq.bmp')
 
 def power_led(rcon):
     rcon.write('RELEASE:\n')
@@ -79,27 +127,32 @@ def start_show(rcon):
 if __name__ == '__main__':
     unit = open_comm('COM3')
     power_led(unit)
-    time.sleep(5.0)
-    filename = '..\led_sequence.bmp'
+    time.sleep(2.0)
+    unit.close()
+    filename = 'generated_files/led_sequence.bmp'
     stick = open_comm('COM5', speed=115200)
     img, columns = proc_img(filename)
-    print query(stick, 'd')
-    print query(stick, 'w1,%s'%filename[3:-4], sleep=2.0)
+    control_seq(img, columns)
+
+    print(query(stick, 'd'))
+    print(query(stick, 'w1,%s'%filename[3:-4], sleep=2.0))
+
     query(stick, '*L%d\n'%(len(img)+7))
     query(stick, '*X72\n')
     query(stick, '*G2500\n')
     query(stick, '*P8000\n')
-    query(stick, '*Z%d\n'%columns)
-    # query(stick, '*C0x010101\n')
     n = len(img)
     print('length', n)
+
+    query(stick, '*Z%d\n'%columns)
     for i in range(len(img)):
         query(stick, img[i])
+
     query(stick, '*K\n')
     query(stick, '*E\n')
 
     query(stick, 'c0x010101\n')
-
-    # start_show(unit)
+    #
+    start_show(unit)
 
 
