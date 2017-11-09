@@ -21,24 +21,20 @@ class Graph:
 
     def update(self, ax, fig, init=False):
 
-        res = 100
-        step = 1
+        res = 100  # discretisation of x axis
         if self.spline == 'poly':
-            poly.interpolate(self.sol)
-            params = np.load('params/param_poly.npy')
+            params = poly.interpolate(self.sol)
             self.order = 3
             ax.set_title('3rd order polynomial')
         if self.spline == 'b-spline':
-            b_spline.interpolate(self.sol, order=self.order)
-            params = np.load('params/param_b_spline_%d.npy' % self.order)
+            params = b_spline.interpolate(self.sol, order=self.order)
             ax.set_title('%s order B-spline' % (str(self.order) + ('nd' if self.order == 2 else 'rd')))
         if self.spline == 'p-spline':
             num_segments = self.n_seg
             poly_deg = self.order
             penalty_order = 2
             lambda_ = self.lambda_
-            p_spline.interpolate(self.sol, num_segments, poly_deg, penalty_order, lambda_)
-            params = np.load('params/param_p_spline_%d.npy' % self.order)
+            params = p_spline.interpolate(self.sol, num_segments, poly_deg, penalty_order, lambda_)
             ax.set_title('%s order P-spline' % (str(self.order) + ('nd' if self.order == 2 else 'rd')))
 
         if self.order == 2:
@@ -59,14 +55,15 @@ class Graph:
         t = np.arange(0, self.sol.shape[0])
 
         if init:
-            self.l = plt.plot(t, self.sol.T[0], t, self.sol.T[1], t, self.sol.T[2], t, self.sol.T[3], t, self.sol.T[4], t,
-                     self.sol.T[5],
-                     t_long, y[0], t_long, y[1], t_long, y[2], t_long, y[3], t_long, y[4], t_long, y[5])
+            self.plot = []
+            for k in range(self.n_joints):
+                self.plot += plt.plot(t, self.sol.T[k])
+                self.plot += plt.plot(t_long, y[k])
 
         else:
-            for k in range(6):
-                self.l[k].set_data(t, self.sol.T[k])
-                self.l[k+6].set_data(t_long, y[k])
+            for k in range(self.n_joints):
+                self.plot[2*k].set_data(t, self.sol.T[k])
+                self.plot[2*k+1].set_data(t_long, y[k])
 
         fig.canvas.draw_idle()
 

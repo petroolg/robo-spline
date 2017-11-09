@@ -61,5 +61,6 @@ def interpolate(points):
         param = np.reshape(param.T, [points.shape[1]*3], order='C')
         param_lst.append(param)
 
-    param_lst = param_correction(points[0], param_lst, 3)
-    np.save('params/param_poly', param_lst)
+    param_lst = param_correction(points[0], np.array(param_lst), 3)
+
+    return param_lst

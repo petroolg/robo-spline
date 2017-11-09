@@ -75,4 +75,5 @@ def interpolate(points, order):
     param = np.reshape(param, [len(lst), points.shape[1] * order])
 
     param = param_correction(points[0], param, order)
-    np.save('params/param_b_spline_%d'%order, param)
+
+    return param

@@ -49,19 +49,20 @@ def M_trans(bdeg):
 
 def interpolate(points, num_segments, poly_deg, p_ord, lambda_):
     assert poly_deg == 2 or poly_deg == 3, 'Function supports only 2nd and 3rd order polynomials'
-    assert poly_deg >= p_ord, 'Degree of polynomial must be greater than penalty of order'
+    assert poly_deg >= p_ord, 'Degree of polynomial must be greater than order of penalty'
 
-    t = np.arange(0, points.shape[0])
+    n, dim = points.shape
+    t = np.arange(0, n)
 
-    a = p_spline(t.T, 0.0, float(points.shape[0]-1), num_segments, poly_deg, p_ord, lambda_, points)
-    step = float(points.shape[0]-1) / num_segments
+    a = p_spline(t.T, 0.0, float(n-1), num_segments, poly_deg, p_ord, lambda_, points)
     Mn = M_trans(poly_deg)
 
-    param = np.empty((0, points.shape[1]*poly_deg))
+    param = np.empty((0, dim*poly_deg))
     for i in range(num_segments):
         c = np.flipud(Mn.dot(a[i:i + poly_deg + 1])).T
-        c = np.reshape(c[:,1:], (points.shape[1]*poly_deg))
+        c = np.reshape(c[:,1:], (dim*poly_deg))
         param = np.append(param, [c], axis=0)
 
     param = param_correction(points[0], param, poly_deg)
-    np.save('params/param_p_spline_%d'%poly_deg, param)
+
+    return param

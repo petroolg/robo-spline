@@ -6,7 +6,7 @@ from graph import Graph
 import os
 
 from CRS_commander import Commander
-from robotCRS97 import robCRS97
+from robotCRS import robCRS97
 from robotBosch import robotBosch
 
 from PIL import Image, BmpImagePlugin
@@ -86,8 +86,8 @@ def showBoschRose(c):
     sol, points, lengths = rose_st(c, 0, 300, 325, f_x, f_y, cond, 1.0, 4*np.pi, 300)
 
     length.append(lengths)
-    poly.interpolate(sol)
-    params_list.append(np.load('params/param_poly.npy'))
+    params = poly.interpolate(sol)
+    params_list.append(params)
     plt.plot(points[:, 0], points[:, 1])
     start_points.append(np.copy(points[0]))
 
@@ -100,8 +100,8 @@ def showBoschRose(c):
     # e.show_gui()
 
     length.append(lengths)
-    poly.interpolate(sol)
-    params_list.append(np.load('params/param_poly.npy'))
+    params = poly.interpolate(sol)
+    # params_list.append(np.load('params/param_poly.npy'))
     plt.plot(points[:, 0], points[:, 1])
     start_points.append(np.copy(points[0]))
 
@@ -111,8 +111,8 @@ def showBoschRose(c):
     sol, points, lengths = rose_st(c, 0, 380, 325, f_x, f_y, cond, 1.0, 9 * np.pi, 400)
 
     length.append(lengths)
-    poly.interpolate(sol)
-    params_list.append(np.load('params/param_poly.npy'))
+    params = poly.interpolate(sol)
+    params_list.append(params)
     plt.plot(points[:, 0], points[:, 1])
     start_points.append(np.copy(points[0]))
 
@@ -122,24 +122,24 @@ def showBoschRose(c):
     sol, points, lengths = rose_st(c, 75, 300, 325, f_x, f_y, cond, 1.0, 0.5* np.pi, 150)
 
     length.append(lengths)
+    params = poly.interpolate(sol)
+    params_list.append(params)
+    plt.plot(points[:, 0], points[:, 1])
+    start_points.append(np.copy(points[0]))
+
+    cond = lambda t: True
+    f_x = lambda t: 40.0/2 * np.sin(6.04*t/3)/(0.3+np.sin(t)**2)
+    f_y = lambda t: 70.0/2 * np.power(np.sin(6.04*t), 4) * np.cos( t)
+    sol, points, lengths = rose_st(c, 0, 300, 300, f_x, f_y, cond, 7.0, 3.12, 350)
+
+    length.append(lengths)
     poly.interpolate(sol)
     params_list.append(np.load('params/param_poly.npy'))
     plt.plot(points[:, 0], points[:, 1])
     start_points.append(np.copy(points[0]))
-    #
-    # cond = lambda t: True
-    # f_x = lambda t: 40.0/2 * np.sin(6.04*t/3)/(0.3+np.sin(t)**2)
-    # f_y = lambda t: 70.0/2 * np.power(np.sin(6.04*t), 4) * np.cos( t)
-    # sol, points, lengths = rose_st(c, 0, 300, 300, f_x, f_y, cond, 7.0, 3.12, 350)
-    #
-    # length.append(lengths)
-    # poly.interpolate(sol)
-    # params_list.append(np.load('params/param_poly.npy'))
-    # plt.plot(points[:, 0], points[:, 1])
-    # start_points.append(np.copy(points[0]))
-    #
-    # e = Graph(sol)
-    # e.show_gui()
+
+    e = Graph(sol)
+    e.show_gui()
 
     # cond = lambda t: True
     # f_x = lambda t: 30.0 * np.power(np.sin(8.78*t), 6)
@@ -202,8 +202,8 @@ def draw_svg(path, blc):
             (-x[np.newaxis].T, y[np.newaxis].T, 325 * np.ones(len(x))[np.newaxis].T, np.zeros(len(x))[np.newaxis].T))
         points2irc(c, points)
         sol = points2irc(c, points)
-        poly.interpolate(sol)
-        params_list.append(np.load('params/param_poly.npy'))
+        params = poly.interpolate(sol)
+        params_list.append(params)
         plt.plot(points[:, 0], points[:, 1])
         start_points.append(np.copy(points[0]))
 

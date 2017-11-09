@@ -7,7 +7,7 @@
 import sys
 import serial
 import time
-from robotCRS97 import *
+from robotCRS import *
 
 
 class Commander:
@@ -126,9 +126,9 @@ class Commander:
         if a & 0x8:
             s = 'error, '
         if a & 0x10000:
-            s = s + 'arm power is off, '
+            s += 'arm power is off, '
         if a & 0x20000:
-            s = s + 'motion stop, '
+            s += 'motion stop, '
         if s:
             raise Exception('Check ready: %s.'%s[:-2])
         if for_coordmv_queue:

@@ -3,7 +3,7 @@
 import os
 import time
 from CRS_commander import Commander
-from robotCRS97 import robCRS97
+from robotCRS import robCRS93, robCRS97
 from robotBosch import robotBosch
 import argparse
 import b_spline
@@ -56,9 +56,9 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--tty-device', dest='tty_dev', type=str,
                         default='/dev/ttyUSB0', help='tty line/device to robot')
     parser.add_argument('-a', '--action', dest='action', type=str,
-                        default='home', help='action to run')
+                        default='graph', help='action to run')
     parser.add_argument('-r', '--robot', dest='robot', type=str,
-                        default='CSR97', help='type of robot\n{\'CSR97\', \'CSR93\', \'Bosch\'}')
+                        default='CRS97', help='type of robot\n{\'CRS97\', \'CRS93\', \'Bosch\'}')
     parser.add_argument('-m', '--max-speed', dest='max_speed', type=int,
                         default=None, help='maximal motion speed')
     parser.add_argument('-t', '--reg-type', dest='reg_type', type=int,
@@ -102,15 +102,15 @@ if __name__ == '__main__':
     if rob == 'CRS97':
         robot = robCRS97()
     if rob == 'CRS93':
-        robot = robCRS97()
+        robot = robCRS93()
     if rob == 'Bosch':
         robot = robotBosch()
 
     c = Commander(robot)
-    c.open_comm(tty_dev, speed=19200)
-    c.rcon.write('RS232BAUD:38400\n')
-    c.rcon.close()
-    c.open_comm(tty_dev, speed=38400)
+    # c.open_comm(tty_dev, speed=19200)
+    # c.rcon.write('RS232BAUD:38400\n')
+    # c.rcon.close()
+    # c.open_comm(tty_dev, speed=38400)
 
     if not skip_setup or action == 'home':
         if action=='show' and hasattr(robot,'gripper_init'):
@@ -125,29 +125,23 @@ if __name__ == '__main__':
 
     if action == 'show' and rob[:3] == 'CRS':
         showCRS(c)
-    if action == 'show' and rob[:3] == 'Bosch':
+    if action == 'show' and rob == 'Bosch':
         showBoschRose(c)
-
-    if not os.path.isdir('params'):
-        os.mkdir('params')
 
     if action == 'move':
         if not os.path.isdir('params'):
             os.mkdir('params')
         if spline == 'poly':
-            poly.interpolate(sol)
-            params = np.load('params/param_poly.npy')
+            params = poly.interpolate(sol)
             order = 3
         if spline == 'b-spline':
-            b_spline.interpolate(sol, order=order)
-            params = np.load('params/param_b_spline_%d.npy' % order)
+            params = b_spline.interpolate(sol, order=order)
         if spline == 'p-spline':
             num_segments = int(len(sol)/3)
             poly_deg = order
             penalty_order = 2
             lambda_ = 0.1
-            p_spline.interpolate(sol, num_segments, poly_deg, penalty_order, lambda_)
-            params = np.load('params/param_p_spline_%d.npy' % order)
+            params = p_spline.interpolate(sol, num_segments, poly_deg, penalty_order, lambda_)
 
     if action == 'move':
         prev_a = c.move_to_pos(start_point)

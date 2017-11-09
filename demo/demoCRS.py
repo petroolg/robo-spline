@@ -6,6 +6,7 @@ from robCRSdkt import robCRSdkt
 import sched
 import serial
 from serial import Serial
+from graph import Graph
 
 
 FREC = 1.0 / 8000.0 * 1e6
@@ -85,24 +86,29 @@ def coord_to_irc(c, points):
     for p in points:
         # print( cy + np.cos(a)*r, cz + np.sin(a)*r)
         prev_a = c.move_to_pos(p, prev_a, move=False)
-        sol = np.append(sol, [prev_a], axis=0)
+        try:
+            sol = np.append(sol, [prev_a], axis=0)
+        except ValueError:
+            continue
     sol = np.delete(sol, 0, 0)
     return sol
 
 def showCRS(c):
     print('demo started')
     if c.rcon:
-        set_show_params(c)
+        # set_show_params(c)
         c.check_ready()
     print('set parameters')
     # convert SVG to path
-    blcorn, im_size, size_ratio, orig_x, orig_y = svg_to_coord('demo/trajectory/traj2.svg', [-240.0, 300.0], 480.0)
+    blcorn, im_size, size_ratio, orig_x, orig_y = svg_to_coord('demo/trajectory/traj2.svg', [-240.0, 350.0], 480.0)
     points = np.load('demo/trajectory/trajectory.npy')
-    sol = coord_to_irc(c, points)
+    sol = coord_to_irc(c, points[:50])
+
+    e = Graph(sol)
+    e.show_gui()
 
     # interpolate points
-    poly.interpolate(sol)
-    params = np.load('params/param_poly.npy')
+    params = poly.interpolate(sol)
     order = 3
 
     print('length of params: %d'%(len(params)))
@@ -125,7 +131,7 @@ def showCRS(c):
     for i in range(preload_s, len(params)):
         c.splinemv(params[i], order=order,min_time=80)
 
-    coord_real = gather_irc(c, show_start, sol)
+    # coord_real = gather_irc(c, show_start, sol)
     c.wait_ready()
     el_time = time.time() - show_start
     times = np.cumsum(np.ones_like(times)*0.08)[np.newaxis].T
