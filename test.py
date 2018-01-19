@@ -82,9 +82,15 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--tty-device', dest='tty_dev', type=str,
                         default='/dev/ttyUSB0', help='tty line/device to robot')
     parser.add_argument('-a', '--action', dest='action', type=str,
-                        default='graph', help='action to run')
+                        default='graph', help='action to run, possible actions:\n \
+                                            {home - homing of the robot,\n \
+                                             graph - draw graph of interpolated trajectory without moving,\n \
+                                             move - move along interpolated trajectory,\n \
+                                             circle - move along sampled trajectory simply point to point,\n \
+                                             grip - close gripper,\n \
+                                             purge - purge errors on motors}')
     parser.add_argument('-r', '--robot', dest='robot', type=str,
-                        default='CRS97', help='type of robot\n{\'CRS97\', \'CRS93\', \'Bosch\'}')
+                        default='CRS97', help='type of robot\n{CRS97, CRS93, Bosch}')
     parser.add_argument('-m', '--max-speed', dest='max_speed', type=int,
                         default=None, help='maximal motion speed')
     parser.add_argument('-t', '--reg-type', dest='reg_type', type=int,
@@ -104,7 +110,7 @@ if __name__ == '__main__':
                         default=10, help='step of circle sampling in degs')
     parser.add_argument('-sp', '--spline', dest='spline',  type=str,
                         default='poly',
-                        help='type of spline to use for interpolation\n{\'poly\', \'b-spline\', \'p-spline\'}')
+                        help='type of spline to use for interpolation\n{poly, b-spline, p-spline}')
     parser.add_argument('-o', '--order', dest='order', type=int,
                         default=2, help='order of splines')
 
@@ -133,14 +139,9 @@ if __name__ == '__main__':
         robot = robotBosch()
 
     c = Commander(robot)
-    # c.open_comm(tty_dev, speed=19200)
-    # c.rcon.write('RS232BAUD:38400\n')
-    # c.rcon.close()
-    # c.open_comm(tty_dev, speed=38400)
+    c.open_comm(tty_dev, speed=19200)
 
     if not skip_setup or action == 'home':
-        if action=='show' and hasattr(robot,'gripper_init'):
-            delattr(robot, 'gripper_init')
         c.init(reg_type=reg_type, max_speed=max_speed, hard_home=True)
 
     if action == 'graph' or action == 'move':
@@ -148,11 +149,6 @@ if __name__ == '__main__':
 
         if start_point is None or sol is None:
             raise Exception('Unfeasible trajectory.')
-
-    if action == 'show' and rob[:3] == 'CRS':
-        showCRS(c)
-    if action == 'show' and rob == 'Bosch':
-        showBoschRose(c)
 
     if action == 'move':
         if not os.path.isdir('params'):
@@ -169,7 +165,6 @@ if __name__ == '__main__':
             lambda_ = 0.1
             params = p_spline.interpolate(sol, num_segments, poly_deg, penalty_order, lambda_)
 
-    if action == 'move':
         prev_a = c.move_to_pos(start_point)
         c.wait_ready(sync=True)
         for i in range(len(params)):
@@ -180,67 +175,12 @@ if __name__ == '__main__':
         circle(c, x0, y0, z0, radius, step=1)
 
     if action == 'grip':
-        robCRSgripper(c, -0.9)
+        robCRSgripper(c, 0.9)
         c.wait_ready()
-        # c.wait_gripper_ready()
-        # c.release()
-
-    if action == 'purge':
-        c.rcon.write("PURGE:\n")
 
     if action == 'graph':
         e = Graph(sol)
         e.show_gui()
 
-    if action == 'blink':
-        print ('blink')
-        c.rcon.write('RELEASE:\n')
-        c.rcon.write('PURGE:\n')
-        c.rcon.write('REGMEH:32730\n')
-        c.rcon.write('REGIH:0\n')
-        c.rcon.write('REGDH:0\n')
-        c.rcon.write('REGPH:100\n')
-        c.rcon.write('GH:0\n')
-        time.sleep(3.0)
-        c.rcon.write('GH:327\n')
-        time.sleep(5.0)
-        c.rcon.write('GH:30\n')
-        time.sleep(1.0)
-        c.rcon.write('GH:327\n')
-
-    if action == 'blink_off':
-        c.rcon.write('GH:0\n')
-
-    if action == 'debug':
-        start = time.time()
-        axes_to_debug = 'CD'
-        print (len(axes_to_debug))
-        samples = 1000
-        for a in c.robot.activemotors:
-            if a in axes_to_debug:
-                c.rcon.write('REGDBG%c:1\n'%a)
-            else:
-                c.rcon.write('REGDBG%c:0\n' % a)
-
-        c.rcon.write('REGDBGPRE:%d\n'%(samples*len(axes_to_debug)*2))
-        for i in range(samples):
-            for a in axes_to_debug:
-                c.rcon.write('0\n1\n')
-        print (c.axis_get_pos())
-        c.rcon.write('REGDBGGNR:\n')
-        time.sleep(2)
-        print (c.axis_get_pos())
-        c.rcon.write('REGDBGHIS:%d\n'%(samples*len(axes_to_debug)*2))
-        buf = ''
-        resp_start = time.time()
-        for i in range(samples*len(axes_to_debug)*2):
-            while buf.find('\n') < 0:
-                buf += c.rcon.read(1024)
-
-            j = buf.find('\n')
-            r = buf[:j]
-            r = r.strip('\n\r ')
-            buf = buf[j+1:]
-            print(r)
-        print(time.time() - start)
-        print(time.time() - resp_start)
+    if action == 'purge':
+        c.rcon.write("PURGE:\n")

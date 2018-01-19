@@ -440,3 +440,5 @@ class Commander:
             self.soft_home()
             print("Hard and soft home done!")
 
+    def reset_motors(self):
+        self.rcon.write("PURGE:\n")

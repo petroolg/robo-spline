@@ -83,7 +83,7 @@ class Graph:
         if init:
             self.plot = []
             for k in range(self.n_joints):
-                self.plot += plt.plot(t, self.sol.T[k])
+                self.plot += plt.plot(t, self.sol.T[k],'k')
                 self.plot += plt.plot(t_long, y[k])
 
         else:
