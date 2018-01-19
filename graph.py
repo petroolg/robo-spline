@@ -24,14 +24,12 @@
 #
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
-import numpy as np
-import os
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, Button, RadioButtons
 import matplotlib.ticker as ticker
-import b_spline
-import p_spline
-import poly
+import numpy as np
+from matplotlib.widgets import Slider, Button, RadioButtons
+
+from interpolation import poly, p_spline, b_spline
 
 
 class Graph:

@@ -26,21 +26,16 @@
 #
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
-import os
-import time
-from CRS_commander import Commander
-from robotCRS import robCRS93, robCRS97
-from robotBosch import robotBosch
 import argparse
-import b_spline
-import p_spline
-import poly
-import numpy as np
-from graph import Graph
-from robCRSgripper import robCRSgripper
+import os
+
+from CRS_commander import Commander
 from demo.im_proc import *
-from demo.demoCRS import showCRS
-from demo.demoBosch import showBoschRose
+from graph import Graph
+from interpolation import poly, p_spline, b_spline
+from robCRSgripper import robCRSgripper
+from robotBosch import robotBosch
+from robotCRS import robCRS93, robCRS97
 
 
 def circle(commander, x=500, y0=250, z0=500, r=50, step=5, move=True):
