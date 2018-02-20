@@ -28,11 +28,12 @@
 
 import argparse
 import os
+import numpy as np
 
 from CRS_commander import Commander
-from demo.im_proc import *
+#from demo.im_proc import *
 from graph import Graph
-from interpolation import poly, p_spline, b_spline
+from interpolation import *
 from robCRSgripper import robCRSgripper
 from robotBosch import robotBosch
 from robotCRS import robCRS93, robCRS97
