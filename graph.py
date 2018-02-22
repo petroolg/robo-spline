@@ -29,7 +29,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from matplotlib.widgets import Slider, Button, RadioButtons
 
-from interpolation import poly, p_spline, b_spline
+from interpolation import *
 
 
 class Graph:
