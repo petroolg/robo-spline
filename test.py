@@ -28,11 +28,12 @@
 
 import argparse
 import os
+import numpy as np
 
 from CRS_commander import Commander
-from demo.im_proc import *
+#from demo.im_proc import *
 from graph import Graph
-from interpolation import poly, p_spline, b_spline
+from interpolation import *
 from robCRSgripper import robCRSgripper
 from robotBosch import robotBosch
 from robotCRS import robCRS93, robCRS97
@@ -42,7 +43,7 @@ def circle(commander, x=500, y0=250, z0=500, r=50, step=5, move=True):
     pos = [x, y0 + r, z0, 0, 0, 0]
     prev_a = commander.move_to_pos(pos, relative=False, move=move)
     sol = np.zeros((1, 6))
-    rng = 360 / step
+    rng = int(360 / step)
     for i in range(rng + 1):
         y = y0 + r * np.cos((i * step) / 180.0 * np.pi)
         z = z0 + r * np.sin((i * step) / 180.0 * np.pi)
@@ -178,4 +179,4 @@ if __name__ == '__main__':
         e.show_gui()
 
     if action == 'purge':
-        c.rcon.write("PURGE:\n")
+        c.send_cmd("PURGE:\n")
