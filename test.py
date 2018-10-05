@@ -22,7 +22,7 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE. 
+# SOFTWARE.
 #
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='CRS robot commander')
     parser.add_argument('-s', '--skip-setup', dest='skip_setup', action='store_true',
-                        default=True, help='skip hard-home inicialization of robot')
+                        default=False, help='skip hard-home inicialization of robot')
     parser.add_argument('-d', '--tty-device', dest='tty_dev', type=str,
                         default='/dev/ttyUSB0', help='tty line/device to robot')
     parser.add_argument('-a', '--action', dest='action', type=str,
