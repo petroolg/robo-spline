@@ -28,6 +28,14 @@ import numpy as np
 
 
 def param_correction(start, params, order):
+    """
+    Parameter correction for coordinate movement. Function prevents accumulating
+    of numeric error in parameters due to float rounding during coordinate movement.
+    :param start: Starting position of movement.
+    :param params: Parameters of coordinate movement.
+    :param order: Order of spline.
+    :return: Corrected parameters.
+    """
     pos = np.round(start.copy())
     oldpos = np.round(start.copy())
     pos_not_rounded = np.round(start.copy())

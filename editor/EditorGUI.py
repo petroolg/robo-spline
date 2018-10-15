@@ -24,15 +24,17 @@
 #
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
-import wx
+
 import numpy
 import matplotlib
+matplotlib.use("Agg")
+import wx
 from wx.lib.masked import NumCtrl
 
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-from matplotlib.backends.backend_wxagg import NavigationToolbar2Wx as NavigationToolbar
+from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
 
 from trajectory_editor import *
 

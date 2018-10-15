@@ -31,7 +31,26 @@
 import numpy as np
 from utils import param_correction
 
-def b_spline(xs, xl, xr, ndx, bdeg):
+M_trans = {
+    2: np.array([[0.5, -1.0, 0.5],[-1.0, 1.0, 0.0],[0.5, 0.5, 0.0]]),
+    3: np.array([[-1.0/6.0, 0.5, -0.5, 1.0/6.0],[0.5, -1.0, 0.5, 0.0],
+                 [-0.5, 0.0, 0.5, 0.0],[1.0/6.0, 2.0/3.0, 1.0/6.0, 0.0]])
+}
+
+
+def _b_spline(n, ndx, bdeg):
+    """
+    B-spline interpolation for subsequent optimisation.
+    :param n: Number of points to interpolate.
+    :param ndx: Number of segments of P-spline.
+    :param bdeg: Order of spline.
+    :return: B-spline parameters.
+    """
+
+    xs = np.arange(0, n).T
+    xl = 0.0
+    xr = float(n - 1)
+
     dx = (xr - xl)/ndx
     t = xl + dx*np.arange(-bdeg, ndx+1)
     Bs = np.empty((len(xs), t.shape[0]))
@@ -50,8 +69,19 @@ def b_spline(xs, xl, xr, ndx, bdeg):
     return Bs
 
 
-def p_spline(x, xl, xr, ndx, bdeg, pord, lam, y):
-    B = b_spline(x, xl, xr, ndx, bdeg)
+def _p_spline(ndx, bdeg, pord, lam, y):
+    """
+    P-spline interpolation.
+    :param ndx: Number of segments of P-spline.
+    :param bdeg: Order of spline.
+    :param pord: Order of penalty function.
+    :param lam: Penalisation coefficient.
+    :param y: Points to interpolate.
+    :return: P-spline parameters.
+    """
+    n, dim = y.shape
+
+    B = _b_spline(n, ndx, bdeg)
     m, n = B.shape
     D = np.diff(np.eye(n), pord).T
     a = np.linalg.inv(B.T.dot(B) + lam*D.T.dot(D)).dot(B.T.dot(y))
@@ -63,25 +93,25 @@ def p_spline(x, xl, xr, ndx, bdeg, pord, lam, y):
     return a
 
 
-def M_trans(bdeg):
-    if bdeg == 2:
-        M = np.array([[0.5, -1.0, 0.5],[-1.0, 1.0, 0.0],[0.5, 0.5, 0.0]])
-
-    if bdeg == 3:
-        M = np.array([[-1.0/6.0, 0.5, -0.5, 1.0/6.0],[0.5, -1.0, 0.5, 0.0],
-                      [-0.5, 0.0, 0.5, 0.0],[1.0/6.0, 2.0/3.0, 1.0/6.0, 0.0]])
-    return M
-
-
 def interpolate(points, num_segments, poly_deg, p_ord, lambda_):
-    assert poly_deg == 2 or poly_deg == 3, 'Function supports only 2nd and 3rd order polynomials'
-    assert poly_deg >= p_ord, 'Degree of polynomial must be greater than order of penalty'
+    """
+    Interpolation of points using P-spline.
+    :param points: Points to interpolate.
+    :param num_segments: Number of segments of P-spline.
+    :param poly_deg: Order of spline.
+    :param p_ord: Order of penalty function.
+    :param lambda_: Penalisation coefficient.
+    :return: Parameters of spline.
+    """
+    if poly_deg != 2 and poly_deg != 3:
+        raise ValueError("Function supports only 2nd and 3rd order polynomials.")
+    if poly_deg < p_ord:
+        raise ValueError("Degree of polynomial must be greater than order of penalty")
 
     n, dim = points.shape
-    t = np.arange(0, n)
 
-    a = p_spline(t.T, 0.0, float(n-1), num_segments, poly_deg, p_ord, lambda_, points)
-    Mn = M_trans(poly_deg)
+    a = _p_spline(num_segments, poly_deg, p_ord, lambda_, points)
+    Mn = M_trans[poly_deg]
 
     param = np.empty((0, dim*poly_deg))
     for i in range(num_segments):

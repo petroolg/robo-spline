@@ -31,14 +31,20 @@
 #  based on code by P. Pisa
 
 import sys
-import serial
 import time
-from robotCRS import *
+
+import numpy as np
+import serial
 
 
 class Commander:
 
     def __init__(self, robot, rcon=None):
+        """
+        Commander constructor.
+        :param robot: Robot instance, e.g. robotBosch, robCRS97 or robCRS93.
+        :param rcon: Serial interface.
+        """
         self.robot = robot
         self.rcon = rcon #type: serial.Serial
         self.stamp = int(time.time() % 0x7fff)
@@ -47,16 +53,28 @@ class Commander:
         self.coord_axes = None
 
     def set_rcon(self, rcon):
+        """
+        Set communication interface.
+        :param rcon: Serial interface.
+        """
         if self.rcon is not None:
             self.rcon.close()
             self.rcon = None
         self.rcon = rcon
 
     def send_cmd(self, cmd):
+        """
+        Send command to command unit through serial interface.
+        :param cmd: Command to send.
+        """
         ba = bytearray(cmd, 'ascii')
         self.rcon.write(ba)
 
     def read_resp(self, maxbytes):
+        """
+        Read response from command unit.
+        :param maxbytes: Max number of bytes to read.
+        """
         resp = self.rcon.read(maxbytes)
         if resp is None:
             return None
@@ -66,9 +84,15 @@ class Commander:
         return s
 
     def irctoangles(self, a):
+        """
+        Convert IRC to degrees.
+        :param a: IRC of angle.
+        :return: Degrees corresponding to IRC.
+        """
         j = np.atleast_2d(a).shape[1]
         n = np.atleast_2d(a).shape[0]
-        assert j == self.robot.DOF, 'Wrong number of joints (%d, should be %d).' % (j, self.robot.DOF)
+        if j != self.robot.DOF:
+            raise ValueError("Wrong number of joints (%d, should be %d)." % (j, self.robot.DOF))
 
         b = np.divide((a - np.repeat(np.array([self.robot.hhirc]), n, axis=0)),
                         np.repeat(np.array([self.robot.degtoirc]), n, axis=0)) \
@@ -79,9 +103,15 @@ class Commander:
             return b
 
     def anglestoirc(self, a):
+        """
+        Convert degrees to IRC.
+        :param a: Degrees of angle.
+        :return: IRC corresponding to degrees.
+        """
         j = np.atleast_2d(a).shape[1]
         n = np.atleast_2d(a).shape[0]
-        assert j == self.robot.DOF, 'Wrong number of joints (%d, should be %d).' % (j, self.robot.DOF)
+        if j != self.robot.DOF:
+            raise ValueError("Wrong number of joints (%d, should be %d)." % (j, self.robot.DOF))
 
         b = np.multiply((a - np.repeat(np.array([self.robot.hhdeg]), n, axis=0)),
                         np.repeat(np.array([self.robot.degtoirc]), n, axis=0)) \
@@ -92,12 +122,26 @@ class Commander:
             return np.rint(b)
 
     def degtorad(self, d):
+        """
+        Convert degrees to radians.
+        :param d: Angle in degrees.
+        :return: Angle in radians.
+        """
         return d * np.pi / 180.0
 
     def radtodeg(self, d):
+        """
+        Convert radians to degrees.
+        :param d: Angle in radians.
+        :return: Angle in degrees.
+        """
         return d * 180.0 / np.pi
 
     def init_robot(self):
+        """
+        Initialize robot. Function performs all necessary settings of control unit.
+        Initialization may require user to press ARM POWER button (placed on control unit).
+        """
         self.sync_cmd_fifo()
         if hasattr(self.robot, 'REGPWRON') and self.robot.REGPWRON == 1:
             self.send_cmd('REGPWRON:%i\n'%self.robot.REGPWRON)
@@ -136,12 +180,15 @@ class Commander:
         if hasattr(self.robot, 'gripper_init'):
             if self.robot.verbose:
                 print('Gripper init.\n')
-            robot = self.robot.gripper_init(self)
+            self.robot.gripper_init(self)
 
         if self.robot.description[:3] == 'CRS':
             self.send_cmd('SPDTB:0,300\n')
 
     def sync_cmd_fifo(self):
+        """
+        Synchronize message queue.
+        """
         self.stamp = (self.stamp + 1) & 0x7fff
         self.send_cmd('STAMP:%d\n' % self.stamp)
         buf='\n'
@@ -160,6 +207,11 @@ class Commander:
                 break
 
     def check_ready(self, for_coordmv_queue = False):
+        """
+        Check robot is in "ready" state.
+        :param for_coordmv_queue: Boolean, whether to check state for coordinate movement message queue.
+        :return: Boolean, whether robot is ready or not.
+        """
         a = int(self.query('ST'))
         s = ''
         if a & 0x8:
@@ -176,6 +228,11 @@ class Commander:
             return False if a & 0x10 else True
 
     def set_speed_par(self, params, force=False):
+        """
+        Set joint's speed parameters.
+        :param params: Minimal and maximal speed for motors.
+        :param force: Force set, ignores lower and upper bound of speed set in robot object.
+        """
         for i in range(self.robot.DOF):
             if self.robot.activemotors[i] != '':
                 if np.imag(params[i]) or params[i] == 0: # relative speed
@@ -191,21 +248,29 @@ class Commander:
                     self.send_cmd('%s%s:%i\n'%('REGMS', self.robot.activemotors[i], params[i]))
 
     def set_acc_par(self, params, force=False):
+        """
+        Set joint's acceleration parameters.
+        :param params: Minimal and maximal acceleration for motors.
+        :param force: Force set, ignores lower and upper bound of acceleration set in robot object.
+        """
         for i in range(self.robot.DOF):
             if self.robot.activemotors[i] != '':
-                if np.imag(params[i]) or params[i] == 0: # relative speed
+                if np.imag(params[i]) or params[i] == 0:  # relative acceleration
                     r = np.imag(params[i])
                     if r < 0 or r > 1:
                         raise  Exception('Relative acceleration %i out of <0;1>'%i)
                     params[i] = round(self.robot.minacceleration[i] * (1 - r) + self.robot.maxacceleration[i] * r)
                     self.send_cmd('%s%s:%i\n'%('REGACC', self.robot.activemotors[i], params[i]))
                 elif not force and (params[i] < self.robot.minacceleration[i] or params[i] > self.robot.maxacceleration[i]):
-                    # speed is not inside lower and upper bound
+                    # acceleration is not inside lower and upper bound
                     raise Exception('Acceleration %d is out of bound'%i)
                 else: # set the speed
                     self.send_cmd('%s%s:%i\n'%('REGACC', self.robot.activemotors[i], params[i]))
 
     def init_communication(self):
+        """
+        Initialize communication through serial interface.
+        """
         s = self.read_resp(1024)
         self.send_cmd("\nECHO:0\n")
         self.sync_cmd_fifo()
@@ -213,6 +278,12 @@ class Commander:
         print('Firmware version : ' + s)
 
     def set_int_param_for_axes(self, param, val, axes_list=None):
+        """
+        Set parameter for a joint.
+        :param param: Parameter to set.
+        :param val: Value of parameter.
+        :param axes_list: List of joints to set parameters to.
+        """
         if axes_list is None:
             axes_list = self.robot.control_axes_list
         valstr = str(int(val))
@@ -220,9 +291,18 @@ class Commander:
             self.send_cmd(param + a + ':' + valstr + '\n')
 
     def set_max_speed(self, val, axes_list=None):
+        """
+        Set maximal speed of joints.
+        :param val: Maximal speeds for joints in axes_list.
+        :param axes_list: List of joints to set maximal speeds to.
+        """
         self.set_int_param_for_axes(axes_list=axes_list, param='REGMS', val=val)
 
     def setup_coordmv(self, axes_list=None):
+        """
+        Setup coordinate movement of joints in axes_list.
+        :param axes_list: List of joints.
+        """
         if axes_list is None:
             axes_list = self.robot.coord_axes
         self.wait_ready()
@@ -235,6 +315,10 @@ class Commander:
         self.last_trgt_irc = None
 
     def throttle_coordmv(self):
+        """
+        Throttle message queue for coordinate movement.
+        :return: Boolean whether the queue is throttled.
+        """
         throttled = False
         if self.coordmv_commands_to_next_check <= 0:
             self.coordmv_commands_to_next_check = 20
@@ -248,6 +332,13 @@ class Commander:
         return throttled
 
     def coordmv(self, pos, min_time=None, relative=False, disc=5):
+        """
+        Coordinate movement of joints.
+        :param pos: Position to move to.
+        :param min_time: Minimal time for the movement, if None movement is carried in minimal possible time.
+        :param relative: Boolean, whether movement is relative to previous (current) position.
+        :param disc: Discontinuity of movement, internal parameter, is to be found in control unit docs.
+        """
         self.throttle_coordmv()
         self.send_cmd('COORDISCONT:%d'%disc + '\n')
         cmd = 'COORDMV' if not relative else 'COORDRELMVT'
@@ -272,6 +363,14 @@ class Commander:
         self.last_trgt_irc = pos
 
     def splinemv(self, param, order=1, min_time=None, disc=5):
+        """
+        Spline movement.
+        :param param: Parameters of spline movement.
+        :param order: Order of spline.
+        :param min_time: Minimal time for the movement, if None movement is carried in minimal possible time.
+        :param disc: Discontinuity of movement, internal parameter, is to be found in control unit docs.
+        :return: Command for unit for specified parameters.
+        """
         self.throttle_coordmv()
         self.send_cmd('COORDISCONT:%d' % disc + '\n')
         param = [int(round(p)) for p in param]
@@ -289,6 +388,10 @@ class Commander:
         return cmd
 
     def axis_get_pos(self, axis_lst=None):
+        """
+        Get position of joints.
+        :return: Position of active joints.
+        """
         if axis_lst is None:
             axis_lst = self.robot.coord_axes
         resp = self.query('COORDAP')
@@ -301,6 +404,10 @@ class Commander:
         return t, pos
 
     def hard_home(self, axes_list=None):
+        """
+        Robot hard homing. Returns joints in axes_list to home position.
+        :param axes_list: List of joints to home.
+        """
         # Hard-home
         if axes_list is None:
             axes_list = self.robot.hh_axes_list
@@ -315,6 +422,10 @@ class Commander:
             self.wait_ready()
 
     def soft_home(self, axes_list=None):
+        """
+        Robot soft homing. Returns joints in axes_list to home position.
+        :param axes_list: List of joints to home.
+        """
         if axes_list is None:
             axes_list = self.robot.hh_axes_list
         self.setup_coordmv()
@@ -325,6 +436,11 @@ class Commander:
         self.wait_ready()
 
     def query(self, query):
+        """
+        Send query to control unit.
+        :param query: Query to send.
+        :return: Control unit's response.
+        """
         buf = '\n'
         self.send_cmd('\n' + query + '?\n')
         while True:
@@ -341,9 +457,21 @@ class Commander:
         return res
 
     def command(self, command):
+        """
+        Send command to control unit.
+        :param command: Command to send
+        """
         self.send_cmd(command + ':\n')
 
     def move_to_pos(self, pos, prev_pos=None, relative=False, move=True):
+        """
+        Move robot to position.
+        :param pos: Coordinates of position to move to, specified in world coordinates.
+        :param prev_pos: Previous position of robot.
+        :param relative: Boolean, whether the movement is relative to previous position.
+        :param move: Boolean, whether to perform movement or not.
+        :return: Coordinates of position in IRC after movement.
+        """
         a = self.robot.ikt(self.robot, pos)
         num = None
         min_dist = float('Inf')
@@ -375,6 +503,10 @@ class Commander:
         return irc
 
     def wait_ready(self, sync=False):
+        """
+        Wait for control unit to be ready.
+        :param sync: Boolean, whether to synchronize with control unit.
+        """
         buf = '\n'
         if sync:
             self.sync_cmd_fifo()
@@ -388,6 +520,9 @@ class Commander:
                 return False
 
     def wait_gripper_ready(self):
+        """
+        Wait for gripper to be ready.
+        """
         if not hasattr(self.robot, 'gripper_ax'):
             raise Exception('This robot has no gripper_ax defined.')
 
@@ -412,13 +547,17 @@ class Commander:
                     break
                 last = p
             time.sleep(self.robot.gripper_poll_time/100)
-            return
-        if s.find('\nFAIL!') >= 0:
+
+        elif s.find('\nFAIL!') >= 0:
             self.wait_ready()
             raise Exception('Command \'R:%s\' returned \'FAIL!\''%self.robot.gripper_ax)
 
     def open_comm(self, tty_dev, speed=19200):
-
+        """
+        Open serial communication port.
+        :param tty_dev: Device to open.
+        :param speed: Baud rate of serial communication.
+        """
         print("Opening %s ...\n" % tty_dev)
         ser = serial.Serial(tty_dev,
                             baudrate=speed,
@@ -432,9 +571,16 @@ class Commander:
         self.init_communication()
 
     def release(self):
+        """
+        Release errors and reset control unit.
+        """
         self.send_cmd("RELEASE:\n")
 
     def init(self, **kwargs):
+        """
+        Initialize commander. Initialize robot and perform homing.
+        :param kwargs: Parameters for initialisation.
+        """
         self.init_robot()
         reg_type = kwargs.get('reg_type', None)
         max_speed = kwargs.get('max_speed', None)
@@ -454,4 +600,7 @@ class Commander:
             print("Hard and soft home done!")
 
     def reset_motors(self):
+        """
+        Reset motors of robot.
+        """
         self.send_cmd("PURGE:\n")

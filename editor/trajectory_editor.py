@@ -77,9 +77,12 @@ class LinSeg(Segment):
 
 class SplineSeg(Segment):
     def __init__(self, start, cx, cy, cz, order=2):
-        assert order == 2 or order == 3, 'Constructor supports only 2nd and 3rd order polynomials'
-        assert len(cx) == len(cy) == len(cz) == order, 'Number of parameters must be equal to order of polynomial' \
-                                                       'cx: %d, cy: %d, cz: %d, order = %d'%(len(cx), len(cy), len(cz), order)
+        if order != 2 and order != 3:
+            raise ValueError("Constructor supports only 2nd and 3rd order polynomials.")
+        if not (len(cx) == len(cy) == len(cz) == order):
+            raise ValueError('Number of parameters must be equal to order of polynomial '
+                             'cx: %d, cy: %d, cz: %d, order = %d'%(len(cx), len(cy), len(cz), order))
+
         self.start = start
         self.cx = cx
         self.cy = cy

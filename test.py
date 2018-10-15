@@ -26,6 +26,12 @@
 #
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
+
+# Script provides functionality for CRS robot initialisation, example trajectories and trajectory visualisation.
+# Show graph of circle trajectory, don't move: python test.py -s -a graph
+# Move along circle trajectory point-to-point: python test.py -a circle
+# Move along circle trajectory using interpolated trajectory: python test.py -a move
+
 import argparse
 import os
 import numpy as np
@@ -40,6 +46,17 @@ from robotCRS import robCRS93, robCRS97
 
 
 def circle(commander, x=500, y0=250, z0=500, r=50, step=5, move=True):
+    """
+    Circle trajectory for CRS robot.
+    :param commander: Robot commander
+    :param x: X coordinate of circle plane
+    :param y0: Y coordinate of starting point
+    :param z0: Z coordinate of starting point
+    :param r: radius of circle
+    :param step: step of trajectory discretisation
+    :param move: boolean, whether to perform movement or not
+    :return: starting point in world coordinates, parameters of trajectory
+    """
     pos = [x, y0 + r, z0, 0, 0, 0]
     prev_a = commander.move_to_pos(pos, relative=False, move=move)
     sol = np.zeros((1, 6))
@@ -51,10 +68,19 @@ def circle(commander, x=500, y0=250, z0=500, r=50, step=5, move=True):
         prev_a = commander.move_to_pos(pos, prev_a, relative=False, move=move)
         sol = np.append(sol, [prev_a], axis=0)
     sol = np.delete(sol, 0, 0)
-    return [x, y0 + r, z0, 0, 0, 0],sol
+    return [x, y0 + r, z0, 0, 0, 0], sol
 
 
 def line(commander, x0, x1, step=5, move=True):
+    """
+    Line trajectory for CRS robot.
+    :param commander: Robot commander
+    :param x0: starting point of trajectory
+    :param x1: end point of trajectory
+    :param step: tep of trajectory discretisation
+    :param move: boolean, whether to perform movement or not
+    :return: starting point in world coordinates, parameters of trajectory
+    """
     x = x0
     prev_x = commander.move_to_pos(x, relative=False, move=move)
     sol = np.zeros((1, 6))

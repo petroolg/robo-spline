@@ -30,7 +30,12 @@ import numpy as np
 #  for BlueBot and Bosch Toolbox
 
 def robCRSikt(robot, pos):
-    """Inverse kinematic task - robot CRS."""
+    """
+    Inverse kinematic task - robot CRS.
+    :param robot: CRS robot instance.
+    :param pos: Coordinates of robot position in world coordinates.
+    :return: Coordinates of robot position in joint coordinates (degrees).
+    """
     
     pos = np.array(pos).astype(float)
     pos[3:] = pos[3:] / 180.0 * np.pi
