@@ -156,8 +156,6 @@ class Commander:
         # Purge
         self.send_cmd("PURGE:\n")
         self.send_cmd("STOP:\n")
-        s = self.read_resp(2000)
-        print(s)
 
         self.check_ready()
         self.wait_ready()
@@ -179,7 +177,7 @@ class Commander:
 
         if hasattr(self.robot, 'gripper_init'):
             if self.robot.verbose:
-                print('Gripper init.\n')
+                print('Gripper init.')
             self.robot.gripper_init(self)
 
         if self.robot.description[:3] == 'CRS':
@@ -307,9 +305,7 @@ class Commander:
             axes_list = self.robot.coord_axes
         self.wait_ready()
         axes_coma_list = ','.join(axes_list)
-        print(axes_coma_list, axes_list)
         self.send_cmd('COORDGRP:' + axes_coma_list + '\n')
-        print('COORDGRP:', axes_coma_list)
         self.wait_ready()
         self.coord_axes = axes_list
         self.last_trgt_irc = None
@@ -353,7 +349,6 @@ class Commander:
                 cmd += ','
         pos = [int(round(p)) for p in pos]
         cmd += ','.join([str(p) for p in pos])
-        print('cmd', cmd)
         self.send_cmd(cmd + '\n')
         if relative:
             if self.last_trgt_irc is None:
@@ -489,12 +484,12 @@ class Commander:
                     min_dist = dist
                     num = i
         if num is None:
-            return None
+            raise ValueError("Position is unreachable!")
         irc = self.anglestoirc(a[num])
 
         return irc
 
-    def move_to_pos(self, irc, relative):
+    def move_to_pos(self, irc, relative=False):
         """
         Move robot to coordinates stated in IRC using coordinated movement.
         :param irc: joint coordinates in IRC

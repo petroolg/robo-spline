@@ -27,10 +27,14 @@
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
 
-# Script provides functionality for CRS robot initialisation, example trajectories and trajectory visualisation.
-# Show graph of circle_trajectory trajectory, don't move: python test.py -s -a graph
-# Move along circle_trajectory trajectory point-to-point: python test.py -a circle_trajectory
-# Move along circle_trajectory trajectory using interpolated trajectory: python test.py -a move
+# Script provides functionality for CRS93, CRS97 and Bosch robot initialisation,
+# plus example trajectories and trajectory visualisation for CRS93 and CRS97 robots.
+
+# Usage examples:
+# Initialize robot, go to home position: python test.py -r CRS93
+# Show graph of circle_trajectory trajectory skip setup: python test.py -r CRS93 -s -a graph
+# Move along circle_trajectory trajectory point-to-point, skip setup: python test.py -r CRS93 -s -a circle_ptp
+# Move along circle_trajectory trajectory using interpolated trajectory, skip setup: python test.py -r CRS93 -a circle_spline
 
 import argparse
 import numpy as np
@@ -47,7 +51,7 @@ from robotCRS import robCRS93, robCRS97
 def move_point_to_point(trajectory, commander):
     commander.move_to_pos(trajectory[0])
     for i in range(1, len(trajectory)):
-        commander.move_to_pos(trajectory[i], trajectory[i - 1], relative=False)
+        commander.move_to_pos(trajectory[i])
 
 
 def move_spline(trajectory, commander, spline, order):
@@ -65,7 +69,7 @@ def move_spline(trajectory, commander, spline, order):
         lambda_ = 0.1
         spline_params = p_spline.interpolate(trajectory, num_segments, poly_deg, penalty_order, lambda_)
 
-    commander.move_to_pos(trajectory[0], relative=False)
+    commander.move_to_pos(trajectory[0])
     commander.wait_ready(sync=True)
     for i in range(len(spline_params)):
         commander.splinemv(spline_params[i], order=order)
@@ -126,7 +130,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--tty-device', dest='tty_dev', type=str,
                         default='/dev/ttyUSB0', help='tty line_trajectory/device to robot')
     parser.add_argument('-a', '--action', dest='action', type=str,
-                        default='graph', help='action to run, possible actions:\n \
+                        default='home', help='action to run, possible actions:\n \
                                             {home - homing of the robot,\n \
                                              graph - draw graph of interpolated circle trajectory,\n \
                                              circle_spline - move along interpolated circle trajectory,\n \
@@ -134,7 +138,7 @@ if __name__ == '__main__':
                                              grip - close gripper,\n \
                                              purge - purge errors on motors}')
     parser.add_argument('-r', '--robot', dest='robot', type=str,
-                        default='CRS97', help='type of robot\n{CRS97, CRS93, Bosch}')
+                        help='type of robot\n{CRS97, CRS93, Bosch}', required=True)
     parser.add_argument('-m', '--max-speed', dest='max_speed', type=int,
                         default=None, help='maximal motion speed')
     parser.add_argument('-t', '--reg-type', dest='reg_type', type=int, default=None, help='controller type selection')
@@ -161,28 +165,30 @@ if __name__ == '__main__':
     if rob == 'Bosch':
         robot = robotBosch()
 
-    commander = Commander(robot)
-    commander.open_comm(tty_dev, speed=19200)
-
-    if action == 'graph' or action == 'circle_ptp' or action == 'circle_spline':
-        sol = circle_trajectory(commander)
-
-    if action == 'graph':
-        e = Graph(sol)
-        e.show_gui()
+    commander = Commander(robot)  # initialize commander
+    commander.open_comm(tty_dev, speed=19200)  # connect to control unit
 
     if not skip_setup or action == 'home':
         commander.init(reg_type=reg_type, max_speed=max_speed, hard_home=True)
 
-    if action == 'circle_spline':
-        move_spline(sol, commander, spline, order)
+    if rob in ['CRS97', 'CRS93']:
 
-    if action == 'circle_ptp':
-        move_point_to_point(sol, commander)
+        if action in ['graph', 'circle_ptp', 'circle_spline']:
+            sol = circle_trajectory(commander)
 
-    if action == 'grip':
-        robCRSgripper(commander, 0.9)
-        commander.wait_ready()
+            if action == 'graph':
+                e = Graph(sol)
+                e.show_gui()
 
-    if action == 'purge':
-        commander.send_cmd("PURGE:\n")
+            if action == 'circle_spline':
+                move_spline(sol, commander, spline, order)
+
+            if action == 'circle_ptp':
+                move_point_to_point(sol, commander)
+
+        if action == 'grip':
+            robCRSgripper(commander, 0.9)
+            commander.wait_ready()
+
+        if action == 'purge':
+            commander.send_cmd("PURGE:\n")
