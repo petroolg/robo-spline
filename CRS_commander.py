@@ -357,8 +357,8 @@ class Commander:
         self.send_cmd(cmd + '\n')
         if relative:
             if self.last_trgt_irc is None:
-                return
-            pos = [p + t for p,t in zip(pos, self.last_trgt_irc)]
+                raise ValueError("Relative movement is requested, but last_trgt_irc is None!")
+            pos = [p + t for p, t in zip(pos, self.last_trgt_irc)]
             # pos = map(int.__add__, pos, self.last_trgt_irc)
         self.last_trgt_irc = pos
 
@@ -463,14 +463,12 @@ class Commander:
         """
         self.send_cmd(command + ':\n')
 
-    def move_to_pos(self, pos, prev_pos=None, relative=False, move=True):
+    def find_closest_ikt(self, pos, prev_pos=None):
         """
-        Move robot to position.
+        Find closest configuration to previous position of home position.
         :param pos: Coordinates of position to move to, specified in world coordinates.
         :param prev_pos: Previous position of robot.
-        :param relative: Boolean, whether the movement is relative to previous position.
-        :param move: Boolean, whether to perform movement or not.
-        :return: Coordinates of position in IRC after movement.
+        :return: Coordinates of closest position in IRC or None if there isn't any position reachable
         """
         a = self.robot.ikt(self.robot, pos)
         num = None
@@ -490,17 +488,24 @@ class Commander:
                 if dist < min_dist:
                     min_dist = dist
                     num = i
-        if num == None:
+        if num is None:
             return None
         irc = self.anglestoirc(a[num])
-        if move:
-            if self.last_trgt_irc is None:
-                relative=False
-            if relative:
-                prev_irc = self.last_trgt_irc
-                irc = list(irc - prev_irc)
-            self.coordmv(irc, relative=relative)
+
         return irc
+
+    def move_to_pos(self, irc, relative):
+        """
+        Move robot to coordinates stated in IRC using coordinated movement.
+        :param irc: joint coordinates in IRC
+        :param relative: Boolean, whether the movement is relative to previous position.
+        """
+        if self.last_trgt_irc is None:
+            relative = False
+        if relative:
+            prev_irc = self.last_trgt_irc
+            irc = list(irc - prev_irc)
+        self.coordmv(irc, relative=relative)
 
     def wait_ready(self, sync=False):
         """
