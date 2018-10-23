@@ -24,15 +24,22 @@
 #
 # In 2017, project funded by PiKRON s.r.o. http://www.pikron.com/
 
-''' Module provides functions for points interpolation using b-splines of 2nd order '''
+''' Module provides functions for points interpolation using b-splines of 2nd and 3rd order '''
 
 import numpy as np
 from utils import param_correction
 
-def b_spline_2(x):
+def _b_spline_2(x):
+    """
+    2nd order B-spline interpolation.
+    :param x: Points to interpolate. Minimal number of points for spline of 2nd order is 5.
+    :return: Parameters of spline.
+    """
 
     n = len(x)
-    assert n > 5, 'Not enough points for interpolation of 2nd order. Minimal number for spline of 2nd order is 5.'
+    if n < 5:
+        raise ValueError("Not enough points for interpolation of 2nd order. "
+                         "Minimal number for spline of 2nd order is 5.")
 
     M0 = np.array([[2, -4, 2], [0, 4, -3], [0, 0, 1]])
     M1 = np.array([[1, -2, 1], [1, 2, -2], [0, 0, 1]])
@@ -48,10 +55,17 @@ def b_spline_2(x):
     return lst
 
 
-def b_spline_3(x):
+def _b_spline_3(x):
+    """
+    3rd order B-spline interpolation.
+    :param x: Points to interpolate. Minimal number of points for spline of 3rd order is 7.
+    :return: Parameters of spline.
+    """
 
     n = len(x)
-    assert n > 7, 'Not enough points for interpolation. Minimal number for spline of 3rd order is 7.'
+    if n < 7:
+        raise ValueError("Not enough points for interpolation. "
+                         "Minimal number for spline of 3rd order is 7.")
 
     M0 = np.array([[12, -36, 36, -12],
                    [0, 36, -54, 21],
@@ -91,11 +105,20 @@ def b_spline_3(x):
 
 
 def interpolate(points, order):
-    assert order == 2 or order == 3, 'Function supports only 2nd and 3rd order polynomials'
+    """
+    Interpolation of points using B-spline.
+    :param points: Points to interpolate.
+    :param order: Order of B-spline.
+    :return: Parameters of spline.
+    """
+
+    if order != 2 and order != 3:
+        raise ValueError("Function supports only 2nd and 3rd order polynomials.")
+
     if order == 2:
-        lst = b_spline_2(points)
+        lst = _b_spline_2(points)
     if order == 3:
-        lst = b_spline_3(points)
+        lst = _b_spline_3(points)
 
     param = [[(lst[i][:])[:, 1:]] for i in range(len(lst))]
     param = np.reshape(param, [len(lst), points.shape[1] * order])

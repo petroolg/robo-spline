@@ -31,8 +31,14 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 
 from interpolation import *
 
+''' Module provides graphing functions for spline trajectory visualisation '''
+
 
 class Graph:
+
+    """
+    Class for graphing interface for spline trajectory. User can adjust interpolation algorithm and parameters.
+    """
 
     def __init__(self, path):
         self.sol = path
@@ -44,6 +50,12 @@ class Graph:
         self.lambda_ = 0.1
 
     def update(self, ax, fig, init=False):
+        """
+        Helper function for graph update after parameter change.
+        :param ax: Axis to update.
+        :param fig: Figure to update.
+        :param init: Whether to initialize plots or use existing.
+        """
 
         res = 100  # discretisation of x axis
         if self.spline == 'poly':
@@ -92,6 +104,9 @@ class Graph:
         fig.canvas.draw_idle()
 
     def show_gui(self):
+        """
+        Show GUI for trajectory visualisation and parameter adjustment.
+        """
 
         fig, ax = plt.subplots()
         plt.subplots_adjust(left=0.3, bottom=0.25)

@@ -78,8 +78,8 @@ class robotBosch:
 
         truebound = np.array([[-86200, -79000, -147000, -9000],[86900, 75400, 2500, 428000]])
 
-        assert np.all(self.bound[0] > truebound[0]) \
-               and np.all(self.bound[1] < truebound[1]), 'Internal err. in robot parameters.'
+        if not (np.all(self.bound[0] > truebound[0]) and np.all(self.bound[1] < truebound[1])):
+            raise ValueError("Internal error in robot parameters.")
 
 
         # Speeds (IRC/256/msec)

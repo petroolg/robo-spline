@@ -31,7 +31,12 @@ import numpy as np
 
 
 def robotBoschikt(robot, pos):
-    """ Inverse kinematic task - robot Bosch."""
+    """
+    Inverse kinematic task for robot Bosch.
+    :param robot: Robot Bosch instance.
+    :param pos: Coordinates of robot position in world coordinates.
+    :return: Coordinates of robot position in joint coordinates (degrees).
+    """
 
     pos = np.array(pos).astype(float)
     c = np.sqrt(pos[0] ** 2 + pos[1] ** 2)

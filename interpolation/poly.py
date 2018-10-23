@@ -31,6 +31,11 @@ from utils import param_correction
 
 # Tri Diagonal Matrix Algorithm solver
 def TDMAsolver(d):
+    """
+    Tri Diagonal Matrix Algorithm solver.
+    :param d: Tri Diagonal Matrix.
+    :return: Solution of linear system.
+    """
 
     n = len(d)
     b = 4*np.ones_like(d)
@@ -48,7 +53,12 @@ def TDMAsolver(d):
     return x
 
 
-def cubic_spline(x):
+def _cubic_spline(x):
+    """
+    Internal function for interpolation using polynomial splines of 3rd order.
+    :param x: Points to interpolate.
+    :return: Spline parameters.
+    """
     n, dim = x.shape
 
     v0 = (4 * x[1] - 3 * x[0] - x[2]) / 2
@@ -78,7 +88,12 @@ def cubic_spline(x):
 
 
 def interpolate(points):
-    [A, B, C, _] = cubic_spline(points)
+    """
+    Interpolation of points using polynomial splines of 3rd order.
+    :param points: Points to interpolate.
+    :return: Spline parameters.
+    """
+    [A, B, C, _] = _cubic_spline(points)
 
     param_lst = []
 
